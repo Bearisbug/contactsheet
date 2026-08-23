@@ -1,0 +1,110 @@
+/* wall 模块样式 —— 由对应 agent 维护,避免并行编辑 style.css 冲突 */
+
+/* ---------- 组件画板的底色档位 ----------
+   iframe 的画布底在浏览器里必然不透明(把嵌入文档的 html/body 设成 transparent,
+   计算值是透明、渲染出来仍是白),所以"融入画布"不是让它透明,而是把底刷成画布同色。
+   iframe 内部由 wall.ts 的 applyBgPref 注入同一个色,这里收掉外层的白底与卡片描边,
+   两层一起消失,那块标本才真的读作"墙的一部分"。 */
+
+.cs-board[data-kind="component"][data-bg="blend"] .cs-frame {
+  background: var(--cs-bg);
+  outline-color: transparent;
+  box-shadow: none;
+}
+/* 边界不能彻底消失:hover 时浮出一条细线,提示这里仍是一块可拖可点的画板 */
+.cs-board[data-kind="component"][data-bg="blend"]:hover .cs-frame {
+  outline-color: var(--cs-line-2);
+}
+/* 真实底色档不用在这里写:iframe 自己刷项目的 --background,
+   加载完成前的兜底白底由 style.css 的 .cs-frame 基础规则提供 */
+
+/* 跟随全局的底色按钮比"本板单独覆盖过"的更淡 —— 一眼看出哪几块被特殊对待了 */
+.cs-bgbtn.is-auto {
+  opacity: 0.45;
+}
+.cs-board:hover .cs-bgbtn.is-auto,
+.cs-bgbtn.is-auto:hover {
+  opacity: 1;
+}
+
+/* ---------- 墙工具条(右上角,JS 建元素,不进 index.html) ----------
+   全局底色默认档 + 自动排列:两件事都是整面墙的,塞进每块画板的标题条既放不下、
+   也会让人以为"只影响这一块"。 */
+
+#cs-wall-tools {
+  position: fixed;
+  right: 14px;
+  top: 12px;
+  z-index: var(--cs-z-chrome);
+  display: flex;
+  align-items: center;
+  gap: var(--cs-sp-4);
+  padding: var(--cs-sp-2) var(--cs-sp-4);
+  border: 1px solid var(--cs-line);
+  border-radius: var(--cs-radius);
+  background: color-mix(in srgb, var(--cs-surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-xs) / 1 var(--cs-ff-sans);
+  user-select: none;
+  box-shadow: var(--cs-e1);
+}
+/* args 面板开着时让开,别被压在下面(与 #cs-refs 同一套规则) */
+body[data-args="open"] #cs-wall-tools {
+  right: 314px;
+}
+/* 走查模式看的是一块画板本身,工具条让开 */
+body[data-mode="review"] #cs-wall-tools {
+  display: none;
+}
+
+#cs-wall-tools .cs-wt-label {
+  color: var(--cs-fg-3);
+  letter-spacing: var(--cs-track-tight);
+  white-space: nowrap;
+}
+
+#cs-wall-tools .cs-seg {
+  display: flex;
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-1);
+  overflow: hidden;
+}
+#cs-wall-tools .cs-seg-btn {
+  padding: 3px var(--cs-sp-4);
+  border: 0;
+  background: transparent;
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-xs) / 1.2 var(--cs-ff-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--cs-dur-1) var(--cs-ease), color var(--cs-dur-1) var(--cs-ease);
+}
+#cs-wall-tools .cs-seg-btn + .cs-seg-btn {
+  border-left: 1px solid var(--cs-line-2);
+}
+#cs-wall-tools .cs-seg-btn:hover {
+  background: var(--cs-s2);
+  color: var(--cs-fg);
+}
+#cs-wall-tools .cs-seg-btn.is-on {
+  background: var(--cs-s4);
+  color: var(--cs-fg);
+}
+
+#cs-wall-tools .cs-wt-btn {
+  padding: 3px var(--cs-sp-4);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-1);
+  background: var(--cs-s2);
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-xs) / 1.2 var(--cs-ff-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--cs-dur-1) var(--cs-ease), color var(--cs-dur-1) var(--cs-ease);
+}
+#cs-wall-tools .cs-wt-btn:hover {
+  background: var(--cs-s3);
+  border-color: var(--cs-line-3);
+  color: var(--cs-fg);
+}

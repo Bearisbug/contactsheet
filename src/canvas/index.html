@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>contactsheet</title>
+    <link rel="icon" type="image/png" href="/__cs/ui/favicon.png" />
+    <link rel="stylesheet" href="/__cs/ui/style.css" />
+    <link rel="stylesheet" href="/__cs/ui/style-wall.css" />
+    <link rel="stylesheet" href="/__cs/ui/style-pins.css" />
+    <link rel="stylesheet" href="/__cs/ui/style-sidebar.css" />
+    <link rel="stylesheet" href="/__cs/ui/style-select.css" />
+  </head>
+  <body data-mode="browse" data-pin="off">
+    <!-- 画布视口:世界容器在里面做 translate+scale -->
+    <div id="cs-viewport"><div id="cs-world"></div></div>
+
+    <!-- 左侧图层列表:上=页面(带路由),下=组件 -->
+    <aside id="cs-sidebar"></aside>
+
+    <!-- 屏幕坐标层:hover/选中描边框、pin 输入框 -->
+    <div id="cs-fx"></div>
+
+    <!-- 顶部信息条 -->
+    <div id="cs-topbar">
+      <button id="cs-sb-toggle" title="收起列表">☰</button>
+      <img class="cs-logo" src="/__cs/ui/logo.png" alt="" />
+      <span class="cs-brand">contactsheet</span>
+      <span id="cs-target">…</span>
+      <button id="cs-push" title="一键推送:把 open 批注 + 选中直接注入本项目正在运行的 Claude Code 会话(按工作目录自动绑定)。快捷键 p">推送 ⏎</button>
+      <button id="cs-copy" title="把所有 open 批注 + 当前选中打包复制(与 hook 注入终端的格式一致),粘贴到任何 Claude Code 窗口即可。快捷键 y">复制批注</button>
+      <span class="cs-zoom" id="cs-zoom">100%</span>
+    </div>
+
+    <!-- 左下角 HUD:模式 + 快捷键 + 反查信息 -->
+    <div id="cs-hud">
+      <div class="cs-hud-row">
+        <span id="cs-mode">浏览</span>
+        <span class="cs-hud-hint">
+          <b>1</b> 全景 · <b>2</b> 聚焦 · <b>0</b> 100% · <b>双击</b> 交互 · <b>Enter</b> 走查 ·
+          <b>c</b> 批注 · <b>p</b> 推送 · <b>Esc</b> 返回
+        </span>
+      </div>
+      <div id="cs-probe">移到画板上反查元素</div>
+    </div>
+
+    <!-- 右侧 args 面板 -->
+    <aside id="cs-args" hidden></aside>
+
+    <!-- 右下角参考图 + 大图浮层 -->
+    <div id="cs-refs"></div>
+    <div id="cs-lightbox" hidden></div>
+
+    <!-- 启动失败提示卡 -->
+    <div id="cs-boot" hidden></div>
+
+    <script src="/__cs/ui/app.js"></script>
+  </body>
+</html>

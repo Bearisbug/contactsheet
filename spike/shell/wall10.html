@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>wall10 — 1B 压测</title>
+<style>
+  body { margin: 0; background: #17181b; color: #ddd; font: 13px/1.4 ui-monospace, monospace; }
+  header { padding: 10px 16px; }
+  .wall { display: grid; grid-template-columns: repeat(5, 390px); gap: 16px; padding: 16px; }
+  .board { display: flex; flex-direction: column; gap: 4px; }
+  .board .label { opacity: .6; font-size: 11px; }
+  iframe { border: 1px solid #333; border-radius: 6px; background: #fff; width: 390px; height: 260px; }
+</style>
+</head>
+<body>
+<header>wall10 — 同一条 [id] 路由 × 10 块画板,宿主 next dev 渲染</header>
+<div class="wall"></div>
+<script>
+  const ids = ["p1-default","p1-warn","p1-tight","p1-warn-tight","p2-image-font",
+               "p3-navigation","p4-server-async","p5-barrel","viewport","p1-again"]
+  const wall = document.querySelector(".wall")
+  for (const id of ids) {
+    const d = document.createElement("div")
+    d.className = "board"
+    d.innerHTML = `<span class="label">${id}</span><iframe src="/__loupe/ab/${id}"></iframe>`
+    wall.appendChild(d)
+  }
+</script>
+</body>
+</html>

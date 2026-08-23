@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>contactsheet spike shell</title>
+<style>
+  body { margin: 0; background: #17181b; color: #ddd; font: 13px/1.4 ui-monospace, monospace; }
+  header { padding: 10px 16px; }
+  .wall { display: flex; gap: 24px; padding: 16px; align-items: flex-start; }
+  .board { display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .board .label { opacity: .6; }
+  iframe { border: 1px solid #333; border-radius: 6px; background: #fff; display: block; }
+  /* 浏览模式的 overlay：截住事件，用 elementFromPoint 反查 iframe 里的元素 */
+  .overlay { position: absolute; inset: 22px 0 0 0; }
+  #hud { position: fixed; bottom: 12px; left: 16px; background: #000c; padding: 8px 12px; border-radius: 6px; max-width: 90vw; }
+</style>
+</head>
+<body>
+<header>contactsheet spike — 同一个 /dashboard，三个宽度</header>
+<div class="wall">
+  <div class="board" data-w="390">
+    <span class="label">390 (手机)</span>
+    <iframe src="/dashboard" width="390" height="700"></iframe>
+    <div class="overlay"></div>
+  </div>
+  <div class="board" data-w="768">
+    <span class="label">768 (平板)</span>
+    <iframe src="/dashboard" width="768" height="700"></iframe>
+    <div class="overlay"></div>
+  </div>
+  <div class="board" data-w="1100">
+    <span class="label">1100 (桌面)</span>
+    <iframe src="/dashboard" width="1100" height="700"></iframe>
+    <div class="overlay"></div>
+  </div>
+</div>
+<div id="hud">hover 任一画板…</div>
+<script>
+  // 地基验证 ③：overlay 截住鼠标，穿透坐标到 iframe 的 document 里反查元素
+  const hud = document.getElementById("hud")
+  document.querySelectorAll(".board").forEach((board) => {
+    const iframe = board.querySelector("iframe")
+    const overlay = board.querySelector(".overlay")
+    overlay.addEventListener("mousemove", (e) => {
+      const r = iframe.getBoundingClientRect()
+      let el
+      try {
+        el = iframe.contentDocument.elementFromPoint(e.clientX - r.left, e.clientY - r.top)
+      } catch (err) {
+        hud.textContent = "跨域拒绝: " + err.message
+        return
+      }
+      if (!el) return
+      const probe = el.closest?.("[data-probe]")
+      hud.textContent =
+        `w=${board.dataset.w}  <${el.tagName.toLowerCase()}>` +
+        (probe ? `  probe=${probe.dataset.probe}` : "") +
+        `  cls=${String(el.className).slice(0, 40)}`
+      hud.dataset.lastProbe = probe ? probe.dataset.probe : ""
+      hud.dataset.lastTag = el.tagName.toLowerCase()
+    })
+  })
+</script>
+</body>
+</html>

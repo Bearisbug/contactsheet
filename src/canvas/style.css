@@ -1,0 +1,1189 @@
+/* ============================================================
+   contactsheet 画布样式
+   颜色/尺寸的唯一出处 = 下面的 :root 变量,组件里不写死色值
+   ============================================================ */
+
+:root {
+  color-scheme: dark;   /* 原生控件(checkbox/select/滚动条)跟随暗色,否则暗面板上一块纯白 */
+
+  /* ---------- 1. 表面(不透明) ----------
+     判据用 L* 差而不是 WCAG 对比度:近黑区的对比度公式被 +0.05 常数压平,
+     四级表面算出来全是 1.07,看着"都是同一个黑"却"达标"。这里按相邻 ΔL*≈6 排,
+     才是真的能看出层次(原值与设计稿给的值都只有 ΔL*≈3.5,等于没分层)。 */
+  --cs-bg:        #09090b;   /* 画布底(zinc-950)      L* 3  */
+  --cs-bg-sunken: #050506;   /* 走查底                       */
+  --cs-s1:        #18181b;   /* 一级:顶栏/HUD/面板/卡片 L* 10 */
+  --cs-s2:        #232327;   /* 二级:输入框/行/chip     L* 15 */
+  --cs-s3:        #2e2e33;   /* 三级:行 hover/键帽      L* 21 */
+  --cs-s4:        #3b3b41;   /* 四级:按下/选中行        L* 27 */
+
+  /* ---------- 2. 描边(一律 alpha-white:浮层压在用户的白页面上也成立) ---------- */
+  --cs-line:        rgba(255, 255, 255, 0.07);
+  --cs-line-2:      rgba(255, 255, 255, 0.12);
+  --cs-line-3:      rgba(255, 255, 255, 0.20);
+  --cs-line-opaque: #23262c;                   /* 必须不透明处:画板 frame */
+  --cs-scrim:       rgba(6, 7, 9, 0.72);
+  --cs-scrim-strong:rgba(6, 7, 9, 0.88);
+
+  /* ---------- 3. 文字 ---------- */
+  --cs-fg:   #fafafa;   /* zinc-50 */
+  --cs-fg-2: #a1a1aa;   /* zinc-400 */
+  --cs-fg-3: #8b8b93;   /* 元信息,对 --cs-s1 有 5.1:1 */
+  --cs-fg-4: #52525b;   /* zinc-600,禁用 */
+
+  /* ---------- 4. 语义色 ----------
+     shadcn 的暗色主题是中性灰阶 + 白色主操作,没有品牌彩色。这里只保留必需的状态色:
+     选中/主操作用近白(不是紫),hover 描边用中性亮线(不是青),
+     状态色只在真的表示状态时出现(open/已解决/危险),且都压低饱和度。 */
+  --cs-accent:        #fafafa;   /* 选中 / 主操作:白,shadcn 的 primary */
+  --cs-accent-hi:     #ffffff;
+  --cs-accent-solid:  #fafafa;   /* 实心主按钮底(配深色文字) */
+  --cs-fg-on-accent:  #0a0a0a;
+  --cs-hover:         #a1a1aa;   /* 反查 hover 描边:中性亮灰 */
+  --cs-warn:          #d4d4d8;   /* pin(open):中性,靠形状而不是颜色说话 */
+  --cs-ok:            #71717a;   /* 已解决:更暗的灰,自然退到背景里 */
+  --cs-danger:        #ef4444;   /* 只有"删除/错误"才配用红 —— 全站唯一的彩色 */
+  --cs-kind-component:#71717a;   /* kind 圆点:灰阶区分,不用彩色编码 */
+  --cs-kind-screen:   #d4d4d8;
+  --cs-accent-08: rgba(250, 250, 250, 0.08);
+  --cs-accent-16: rgba(250, 250, 250, 0.14);
+  --cs-accent-32: rgba(250, 250, 250, 0.28);
+  --cs-hover-12:  rgba(161, 161, 170, 0.14);
+  --cs-warn-16:   rgba(212, 212, 216, 0.16);
+  --cs-ok-16:     rgba(113, 113, 122, 0.18);
+  --cs-danger-16: rgba(239, 68, 68, 0.16);
+
+  /* ---------- 5. 字体:mono 只给机器串(selector/id/尺寸),人读的一律 sans ---------- */
+  --cs-ff-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+    "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --cs-ff-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --cs-fs-micro: 10px;
+  --cs-fs-xs:    11px;
+  --cs-fs-sm:    12px;
+  --cs-fs-md:    13px;
+  --cs-fs-lg:    15px;
+  --cs-lh-tight: 1.2;
+  --cs-lh:       1.45;
+  --cs-fw-medium: 500;
+  --cs-fw-bold:   600;
+  --cs-track-tight: -0.011em;
+  --cs-track-wide:   0.06em;
+
+  /* ---------- 6. 间距(4 基) ---------- */
+  --cs-sp-1: 2px;  --cs-sp-2: 4px;  --cs-sp-3: 6px;  --cs-sp-4: 8px;
+  --cs-sp-5: 12px; --cs-sp-6: 16px; --cs-sp-7: 20px; --cs-sp-8: 24px;
+
+  /* ---------- 7. 圆角 ---------- */
+  --cs-r-1: 4px; --cs-r-2: 6px; --cs-r-3: 8px; --cs-r-4: 12px; --cs-r-full: 999px;
+
+  /* ---------- 8. 阴影:环境光 + 主光 + 顶缘高光(暗色 UI"有厚度"的关键) ---------- */
+  --cs-e1: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --cs-e2: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px -6px rgba(0, 0, 0, 0.50);
+  --cs-e3: 0 4px 12px rgba(0, 0, 0, 0.40), 0 24px 48px -12px rgba(0, 0, 0, 0.60);
+  --cs-edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --cs-focus: 0 0 0 2px var(--cs-bg), 0 0 0 4px var(--cs-accent-32);
+
+  /* ---------- 9. 动效 ---------- */
+  --cs-dur-1: 90ms;
+  --cs-dur-2: 160ms;
+  --cs-dur-3: 240ms;
+  --cs-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cs-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---------- 10. 层级 ---------- */
+  --cs-z-pins: 2; --cs-z-board-up: 5; --cs-z-fx: 20;
+  --cs-z-chrome: 30; --cs-z-panel: 40; --cs-z-overlay: 60; --cs-z-boot: 70;
+
+  /* ---------- 11. 布局常量(JS 侧 wall.ts 的 TITLE_H 必须等于 --cs-title-h) ---------- */
+  --cs-title-h: 24px;
+
+  /* ---------- 12. 运行时(JS 写入) ---------- */
+  --cs-inv: 1;
+}
+
+/* 兼容别名:老选择器一行不动就能跑,后续增量迁移 */
+:root {
+  --cs-bg-dot:          rgba(255, 255, 255, 0.055);
+  --cs-surface:         var(--cs-s1);
+  --cs-surface-2:       var(--cs-s2);
+  --cs-surface-3:       var(--cs-s3);
+  --cs-line-strong:     var(--cs-line-2);
+  --cs-text:            var(--cs-fg);
+  --cs-text-dim:        var(--cs-fg-2);
+  --cs-text-faint:      var(--cs-fg-3);
+  --cs-accent-weak:     var(--cs-accent-16);
+  --cs-hover-weak:      var(--cs-hover-12);
+  --cs-pin:             var(--cs-warn);
+  --cs-badge-component: var(--cs-kind-component);
+  --cs-badge-screen:    var(--cs-kind-screen);
+  --cs-radius:          var(--cs-r-4);
+  --cs-radius-sm:       var(--cs-r-2);
+  --cs-shadow:          var(--cs-e3);
+  --cs-shadow-sm:       var(--cs-e1);
+  --cs-font:            var(--cs-ff-sans);
+  --cs-mono:            var(--cs-ff-mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* 全站唯一焦点环。透明 outline 是给 Windows 强制颜色模式的回退——那种模式会抹掉
+   box-shadow,只有 outline 会被系统赋色顶上 */
+:where(button, select, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--cs-focus);
+}
+
+/* 滚动条外观:只用标准属性,颜色取自变量(不与 ::-webkit-scrollbar 混用) */
+.cs-args-body, #cs-refs, .cs-field textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cs-line-2) transparent;
+  overscroll-behavior: contain; /* 滚到底不把画布/页面一起带走 */
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--cs-bg);
+  color: var(--cs-fg);
+  font: var(--cs-fs-md) / var(--cs-lh) var(--cs-ff-sans);
+  letter-spacing: var(--cs-track-tight);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------- 视口与世界 ---------- */
+
+#cs-viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background-image: radial-gradient(var(--cs-bg-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  cursor: default;
+}
+#cs-viewport.is-panning { cursor: grabbing; }
+body[data-pin="on"] #cs-viewport { cursor: crosshair; }
+
+#cs-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ---------- 分组(一个文件 = 一列) ---------- */
+
+.cs-group {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.cs-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 22px;
+  padding: 0 2px;
+  color: var(--cs-text-dim);
+  font: 600 12px/22px var(--cs-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.cs-group-title .cs-group-count {
+  color: var(--cs-text-faint);
+  font-weight: 400;
+}
+
+/* ---------- 画板 ---------- */
+
+.cs-board {
+  position: absolute;
+  left: 0;
+}
+
+/* 标题条按内容收缩,不再拉满画板宽——否则名字在最左、"3 args"在最右,
+   中间 400px 真空,看起来像两个无关的东西 */
+.cs-board-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cs-sp-3);
+  width: fit-content;
+  max-width: 100%;
+  height: var(--cs-title-h);
+  padding: 0 var(--cs-sp-3) 0 var(--cs-sp-2);
+  border-radius: var(--cs-r-1) var(--cs-r-1) 0 0;
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: background var(--cs-dur-1) var(--cs-ease);
+}
+.cs-board-title:hover { background: var(--cs-s2); }
+.cs-board-title .cs-name {
+  flex: 1 1 auto;          /* 名字优先占位;被裁的该是徽标不是名字 */
+  min-width: 0;
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-sm)/1 var(--cs-ff-sans);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  transition: color var(--cs-dur-1) var(--cs-ease);
+}
+.cs-board:hover .cs-name,
+.cs-board.is-active .cs-name { color: var(--cs-fg); }
+/* 次要元信息:平时几乎隐形,hover 才现身 */
+.cs-board-title .cs-args-n {
+  flex: none;
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-micro)/1 var(--cs-ff-mono);
+  opacity: 0;
+  transition: opacity var(--cs-dur-1) var(--cs-ease);
+}
+.cs-board:hover .cs-args-n, .cs-board.is-active .cs-args-n { opacity: 1; }
+
+/* kind 徽标降级成 6px 圆点:"这是组件"是零信息量内容,不该是全屏最亮的东西 */
+.cs-badge {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border-radius: var(--cs-r-full);
+  background: currentColor;
+  font-size: 0;            /* 文字留给 title 属性,不显示 */
+  overflow: hidden;
+}
+.cs-badge[data-kind="component"] { color: var(--cs-kind-component); }
+.cs-badge[data-kind="screen"] { color: var(--cs-kind-screen); }
+
+/* 画板是"标本卡":iframe 的画布底在浏览器里必然不透明(把 html/body 设成 transparent
+   也没用,计算值透明、渲染仍是白),所以不装作它能裸放——给它边框、圆角、阴影,
+   让那块白读作有意为之的展台,而不是一块漂在暗底上没轮廓的色块。 */
+.cs-frame {
+  position: relative;
+  /* 用 outline 不用 border:border 会吃掉 2px 内容宽,env.width:390 实得 388,
+     媒体查询会误命中更窄的断点 —— 声明宽度必须就是 iframe 视口宽度 */
+  outline: 1px solid var(--cs-line-opaque);
+  /* 不加圆角也不加阴影:带这两样,白底读起来是"又浮了一张卡片",而高亮框是直角矩形,
+     形状对不上。画板的底就该读作画板本身的面,边界交给那条 1px outline */
+  background: #fff;
+  overflow: hidden;
+  transition: outline-color var(--cs-dur-1) var(--cs-ease);
+}
+.cs-board:hover .cs-frame {
+  outline-color: var(--cs-line-3);
+}
+.cs-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent; /* 画布底由 .cs-frame 决定,iframe 自己不再叠一层 */
+}
+
+/* 未挂载占位 */
+.cs-ph[hidden] { display: none; }
+.cs-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--cs-surface-2);
+  color: var(--cs-text-faint);
+  font: 12px var(--cs-mono);
+  text-align: center;
+  padding: 8px;
+}
+
+/* 事件拦截层:浏览模式吃掉鼠标,反查 iframe 内元素 */
+.cs-ovl {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+/* 交互模式:当前板放行事件 + 亮边框,其余压暗 */
+body[data-mode="interact"] .cs-board.is-active .cs-ovl { pointer-events: none; }
+/* 交互模式:整块画板亮起来 —— 可交互的是整个页面,不是某个元素。
+   压在白色页面上时 1px 细线几乎看不见,所以用 2px 外环 + 光晕。 */
+body[data-mode="interact"] .cs-board.is-active .cs-frame {
+  outline: 2px solid var(--cs-accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 6px var(--cs-accent-16), var(--cs-e3);
+}
+body[data-mode="interact"] .cs-board.is-active .cs-board-title {
+  background: var(--cs-accent-16);
+}
+body[data-mode="interact"] .cs-board.is-active .cs-name { color: var(--cs-accent-hi); }
+/* 交互/走查模式下 pin 只展示不拦截:别挡住用户要点的元素(批注恰恰钉在最常点的地方) */
+body[data-mode="interact"] .cs-pin,
+body[data-mode="review"] .cs-pin {
+  pointer-events: none;
+  opacity: 0.35;
+}
+body[data-mode="interact"] .cs-board:not(.is-active) { opacity: 0.4; }
+body[data-mode="interact"] .cs-section-title { opacity: 0.3; }
+
+/* 走查模式:只留当前板,世界变换已由 JS 缩放到铺满 */
+body[data-mode="review"] .cs-board:not(.is-active),
+body[data-mode="review"] .cs-section-title { visibility: hidden; }
+body[data-mode="review"] .cs-board.is-active .cs-board-title { display: none; }
+body[data-mode="review"] .cs-board.is-active .cs-ovl { pointer-events: none; }
+body[data-mode="review"] .cs-board.is-active .cs-frame {
+  border-radius: var(--cs-radius-sm);
+}
+
+/* 浏览模式下,当前活动板给个低调的提示边(Enter 会走查它) */
+body[data-mode="browse"] .cs-board.is-active .cs-board-title {
+  border-color: var(--cs-line-strong);
+}
+
+/* ---------- pin 批注 ---------- */
+
+.cs-pins {
+  /* 挂在 board 层(不进 overflow:hidden 的 frame),对齐到 frame 区域:标题条以下 */
+  position: absolute;
+  inset: var(--cs-title-h) 0 0 0;
+  pointer-events: none;
+  z-index: 2; /* 盖住标题条与 frame,气泡向上弹时不被裁、不被截击 */
+}
+
+.cs-pin {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid #0008;
+  border-radius: 50%;
+  background: var(--cs-pin);
+  color: var(--cs-fg-on-accent);
+  font: 700 10px/14px var(--cs-mono);
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(var(--cs-inv));
+  transform-origin: 50% 50%;
+}
+/* 用 color-mix 调暗圆点自身,不能用 opacity——父节点透明会把里面的气泡一起弄糊 */
+.cs-pin.is-resolved { background: color-mix(in srgb, var(--cs-ok) 62%, var(--cs-bg)); }
+.cs-pin.is-orphan { background: var(--cs-danger); }
+
+.cs-pin-bubble {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  width: 268px;   /* 220 太窄:4 个中文按钮会被压成「删/除」竖排 */
+  padding: 8px 9px;
+  border: 1px solid var(--cs-line-strong);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-surface);
+  color: var(--cs-text);
+  font: 12px/1.45 var(--cs-font);
+  text-align: left;
+  box-shadow: var(--cs-shadow);
+  transform: translateX(-50%);
+  display: none;
+  z-index: 3;
+  white-space: pre-wrap;
+}
+.cs-pin:hover .cs-pin-bubble { display: block; }
+.cs-pin-bubble .cs-pin-meta {
+  display: flex;
+  flex-wrap: wrap;              /* 放不下就换行,而不是把按钮压成竖排 */
+  align-items: center;
+  gap: var(--cs-sp-2);
+  margin-top: var(--cs-sp-4);
+  padding-top: var(--cs-sp-3);
+  border-top: 1px solid var(--cs-line);
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-micro)/1 var(--cs-ff-sans);
+  letter-spacing: var(--cs-track-wide);
+  text-transform: uppercase;
+}
+.cs-pin-meta button {
+  flex: 0 0 auto;               /* 不许被压缩 */
+  white-space: nowrap;          /* 不许逐字换行 */
+  min-width: 48px;              /* 两字中文按钮也有像样的点击区 */
+  padding: var(--cs-sp-2) var(--cs-sp-5);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-1);
+  background: var(--cs-s2);
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-xs)/1.1 var(--cs-ff-sans);
+  letter-spacing: var(--cs-track-tight);
+  text-transform: none;
+  cursor: pointer;
+  transition: background var(--cs-dur-1) var(--cs-ease),
+    color var(--cs-dur-1) var(--cs-ease), border-color var(--cs-dur-1) var(--cs-ease);
+}
+.cs-pin-meta button:first-of-type { margin-left: auto; }
+.cs-pin-meta button:hover {
+  background: var(--cs-s3);
+  border-color: var(--cs-line-3);
+  color: var(--cs-fg);
+}
+.cs-pin-meta button.cs-x-danger:hover {
+  background: var(--cs-danger-16);
+  border-color: var(--cs-danger);
+  color: var(--cs-danger);
+}
+
+/* ---------- 屏幕坐标层:高亮框 / pin 输入框 ---------- */
+
+#cs-fx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.cs-box {
+  position: absolute;
+  border: 1px solid var(--cs-hover);
+  background: var(--cs-hover-weak);
+  border-radius: 2px;
+  display: none;
+}
+.cs-box.is-on { display: block; }
+.cs-box[data-kind="select"] {
+  border-color: var(--cs-accent);
+  border-style: solid;
+  background: var(--cs-accent-weak);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.cs-box .cs-box-tag {
+  /* 位置由 select.ts 的 placeTag() 内联写入(要按画板边界翻边/夹边),这里不给 top/left */
+  position: absolute;
+  padding: 1px 5px;
+  border-radius: 3px 3px 0 0;
+  background: var(--cs-hover);
+  color: var(--cs-fg-on-accent);
+  font: var(--cs-fw-bold) var(--cs-fs-micro)/14px var(--cs-ff-mono);
+  white-space: nowrap;
+}
+.cs-box[data-kind="select"] .cs-box-tag {
+  background: var(--cs-accent);
+  color: var(--cs-fg-on-accent);
+}
+
+.cs-pin-input {
+  position: absolute;
+  width: 232px;
+  padding: 7px;
+  border: 1px solid var(--cs-pin);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-surface);
+  box-shadow: var(--cs-shadow);
+  pointer-events: auto;
+}
+.cs-pin-input textarea {
+  display: block;
+  width: 100%;
+  height: 54px;
+  padding: 5px;
+  border: 1px solid var(--cs-line);
+  border-radius: 4px;
+  background: var(--cs-surface-2);
+  color: var(--cs-text);
+  font: 12px/1.4 var(--cs-font);
+  resize: none;
+}
+.cs-pin-input textarea:focus-visible {
+  border-color: var(--cs-pin);
+  outline: 2px solid var(--cs-pin);
+  outline-offset: 1px;
+}
+.cs-pin-input .cs-pin-tip {
+  margin-top: 5px;
+  color: var(--cs-text-faint);
+  font: 10px/1 var(--cs-mono);
+}
+
+/* ---------- HUD ---------- */
+
+#cs-hud {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 30;
+  /* 纯信息层:绝不拦事件。它是固定浮层,盖住的画板本来就该照样能拖能点 */
+  pointer-events: none;
+  user-select: none;
+  min-width: 260px;
+  max-width: 46vw;
+  padding: 8px 10px;
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-3);
+  background: color-mix(in srgb, var(--cs-s1) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--cs-e1), var(--cs-edge);
+  user-select: none;
+}
+.cs-hud-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+#cs-mode {
+  padding: 2px var(--cs-sp-4);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-full);
+  background: var(--cs-s2);
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-xs)/1.6 var(--cs-ff-sans);
+}
+body[data-mode="interact"] #cs-mode,
+body[data-mode="review"] #cs-mode,
+body[data-pin="on"] #cs-mode {
+  border-color: transparent;
+  background: var(--cs-accent);
+  color: var(--cs-fg-on-accent);
+}
+.cs-hud-hint {
+  color: var(--cs-fg-4);
+  font: var(--cs-fs-xs)/1.7 var(--cs-ff-sans);
+}
+.cs-hud-hint b {
+  display: inline-block;
+  min-width: 15px;
+  padding: 0 4px;
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-1);
+  background: var(--cs-s2);
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-micro)/1.5 var(--cs-ff-mono);
+  text-align: center;
+}
+#cs-probe {
+  margin-top: 6px;
+  color: var(--cs-fg-2);
+  font: var(--cs-fs-xs)/1.4 var(--cs-ff-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 顶部信息条 ---------- */
+
+#cs-topbar {
+  position: fixed;
+  left: 14px;
+  top: 12px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-3);
+  background: color-mix(in srgb, var(--cs-s1) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--cs-e1), var(--cs-edge);
+  color: var(--cs-fg-4);
+  font: var(--cs-fs-xs)/1.6 var(--cs-ff-sans);
+  user-select: none;
+}
+/* logo:全息玻璃小标,高度对齐文字行;不透明度略压,别抢注意力 */
+#cs-topbar .cs-logo { height: 18px; width: auto; display: block; }
+#cs-topbar .cs-brand { color: var(--cs-fg-2); font-weight: var(--cs-fw-medium); }
+#cs-topbar .cs-zoom { color: var(--cs-fg-3); font: var(--cs-fs-micro)/1.6 var(--cs-ff-mono); }
+#cs-topbar #cs-target { color: var(--cs-fg-4); font: var(--cs-fs-micro)/1.6 var(--cs-ff-mono); }
+
+/* ---------- args 面板 ---------- */
+
+#cs-args {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--cs-line-2);
+  background: var(--cs-s1);
+  box-shadow: var(--cs-e3);
+}
+#cs-args[hidden] { display: none; }
+.cs-args-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--cs-line);
+}
+.cs-args-head .cs-args-title {
+  min-width: 0;
+  font: var(--cs-fw-bold) var(--cs-fs-md)/1.2 var(--cs-ff-sans);
+  letter-spacing: var(--cs-track-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cs-args-head .cs-x {
+  margin-left: auto;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: var(--cs-r-1);
+  background: transparent;
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-sm)/1 var(--cs-ff-sans);
+  cursor: pointer;
+}
+.cs-args-head .cs-x:hover { background: var(--cs-s3); color: var(--cs-fg); }
+.cs-args-sub {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--cs-line);
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-micro)/1.5 var(--cs-ff-mono);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.cs-args-body {
+  flex: 1;
+  min-height: 0; /* flex 子项要能收缩,内部滚动才激活 */
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px;
+}
+.cs-field { margin-bottom: 12px; }
+.cs-field > label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-xs)/1.4 var(--cs-ff-sans);
+}
+.cs-field input[type="text"],
+.cs-field input[type="number"],
+.cs-field textarea {
+  width: 100%;
+  padding: var(--cs-sp-3) var(--cs-sp-4);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-2);
+  background: var(--cs-s2);
+  color: var(--cs-fg);
+  font: var(--cs-fs-sm)/1.4 var(--cs-ff-mono);
+}
+.cs-field textarea { height: 76px; resize: vertical; }
+/* 焦点环:只在键盘聚焦时补 outline,不一刀切 outline:none */
+.cs-field input:focus-visible,
+.cs-field textarea:focus-visible {
+  border-color: var(--cs-line-3);
+  outline: 2px solid var(--cs-accent-32);
+  outline-offset: 0;
+}
+.cs-field.is-bool > label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--cs-fg);
+  font: var(--cs-fs-sm)/1 var(--cs-ff-sans);
+  cursor: pointer;
+}
+.cs-field input[type="checkbox"] { accent-color: var(--cs-accent); width: 14px; height: 14px; }
+.cs-args-empty { color: var(--cs-fg-3); font: var(--cs-fs-sm)/1.6 var(--cs-ff-sans); }
+.cs-args-foot {
+  padding: 10px 12px;
+  border-top: 1px solid var(--cs-line);
+}
+.cs-args-foot button {
+  width: 100%;
+  padding: var(--cs-sp-3);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-2);
+  background: transparent;
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-sm)/1.4 var(--cs-ff-sans);
+}
+.cs-args-foot button[disabled] { cursor: not-allowed; opacity: 0.5; }
+
+/* ---------- 参考图 ---------- */
+
+#cs-refs {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  max-height: 70vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+/* args 面板开着时让开,别被压在下面 */
+body[data-args="open"] #cs-refs { right: 314px; }
+#cs-refs .cs-ref {
+  width: 84px;
+  border: 1px solid var(--cs-line);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-surface);
+  padding: 4px;
+  cursor: zoom-in;
+  box-shadow: var(--cs-shadow-sm);
+}
+#cs-refs .cs-ref img { display: block; width: 100%; border-radius: 3px; }
+#cs-refs .cs-ref span {
+  display: block;
+  margin-top: 3px;
+  color: var(--cs-text-faint);
+  font: 9px/1.2 var(--cs-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#cs-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.82);
+  cursor: zoom-out;
+}
+#cs-lightbox[hidden] { display: none; }
+#cs-lightbox img {
+  max-width: 88vw;
+  max-height: 82vh;
+  border-radius: var(--cs-r-3);
+  box-shadow: var(--cs-e3);
+}
+#cs-lightbox span { color: var(--cs-fg-2); font: var(--cs-fs-xs) var(--cs-ff-mono); }
+
+/* ---------- 启动失败提示卡 ---------- */
+
+#cs-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 14, 17, 0.86);
+}
+#cs-boot[hidden] { display: none; }
+.cs-card {
+  max-width: 420px;
+  padding: 22px 24px;
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-4);
+  background: var(--cs-s1);
+  box-shadow: var(--cs-e3), var(--cs-edge);
+  text-align: left;
+}
+.cs-card h2 { margin: 0 0 var(--cs-sp-3); font: var(--cs-fw-bold) var(--cs-fs-lg)/1.4 var(--cs-ff-sans); letter-spacing: var(--cs-track-tight); }
+.cs-card p { margin: 0 0 var(--cs-sp-3); color: var(--cs-fg-2); font: var(--cs-fs-sm)/1.6 var(--cs-ff-sans); }
+.cs-card code {
+  padding: 1px 5px;
+  border-radius: var(--cs-r-1);
+  background: var(--cs-s2);
+  color: var(--cs-fg);
+  font: var(--cs-fs-xs) var(--cs-ff-mono);
+}
+.cs-card .cs-err { color: var(--cs-danger); font: var(--cs-fs-micro)/1.5 var(--cs-ff-mono); word-break: break-all; }
+/* 只作用于卡片的直接子按钮(重试/确认这类主操作)。以前写成 `.cs-card button` 会连
+   picker 的会话行一起染成蓝色主 CTA——选会话是中性选择,不该长得像"即将执行" */
+.cs-card > button {
+  margin-top: var(--cs-sp-6);
+  padding: var(--cs-sp-4) var(--cs-sp-7);
+  border: 1px solid transparent;
+  border-radius: var(--cs-r-2);
+  background: var(--cs-accent);
+  color: var(--cs-fg-on-accent);
+  font: var(--cs-fw-medium) var(--cs-fs-sm)/1 var(--cs-ff-sans);
+  cursor: pointer;
+  transition: opacity var(--cs-dur-1) var(--cs-ease);
+}
+.cs-card > button:hover { opacity: 0.85; }
+
+/* pins.ts / app.ts 在用但 CSS 里一直缺的类 */
+.cs-dim { color: var(--cs-fg-3); font-size: var(--cs-fs-xs); }
+
+/* ---------- 批注编辑 + 复制批注按钮 ---------- */
+
+/* 编辑中气泡常显,不再依赖 hover(鼠标要进 textarea) */
+.cs-pin-bubble.is-editing { display: block; }
+
+.cs-pin-edit {
+  width: 100%;
+  min-height: 56px;
+  padding: 6px 7px;
+  border: 1px solid var(--cs-line-strong);
+  border-radius: 4px;
+  background: var(--cs-surface-2);
+  color: var(--cs-text);
+  font: 12px/1.45 var(--cs-font);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+#cs-copy {
+  padding: var(--cs-sp-2) var(--cs-sp-5);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-2);
+  background: transparent;
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-medium) var(--cs-fs-xs)/1.6 var(--cs-ff-sans);
+  cursor: pointer;
+  transition: background var(--cs-dur-1) var(--cs-ease), color var(--cs-dur-1) var(--cs-ease);
+}
+#cs-copy:hover { background: var(--cs-s2); color: var(--cs-fg); }
+
+/* hover/编辑中的画板整体抬到邻居之上:pin 气泡朝上弹时不被相邻画板的标题条盖住 */
+.cs-board:hover { z-index: 5; }
+.cs-board:has(.cs-pin-bubble.is-editing) { z-index: 5; }
+
+/* 走查模式标题条隐藏,frame 顶到 board 顶,pins 层同步对齐 */
+body[data-mode="review"] .cs-board.is-active .cs-pins { top: 0; }
+
+/* JS 宽限开合:is-open 时气泡常显(与 :hover 并存,穿过死区不闪没) */
+.cs-pin.is-open .cs-pin-bubble { display: block; }
+
+/* screen 画板是"一整个页面",比组件标本更重:边框更实一点,把两类画板区分开 */
+.cs-board[data-kind="screen"] .cs-frame {
+  outline-color: var(--cs-line-2);
+  box-shadow: var(--cs-e2);
+}
+
+/* screen 画板的视口宽度下拉 */
+.cs-wsel {
+  flex: none;
+  max-width: 96px;
+  padding: 1px 3px;
+  border: 1px solid var(--cs-line);
+  border-radius: 3px;
+  background: var(--cs-surface-2);
+  color: var(--cs-text-dim);
+  font: 10px/1.3 var(--cs-mono);
+}
+.cs-wsel:hover { color: var(--cs-text); border-color: var(--cs-line-strong); }
+
+/* ---------- 拖拽调尺寸手柄 + 底色开关 ---------- */
+
+.cs-rz { position: absolute; z-index: 3; }
+.cs-rz-e { top: var(--cs-title-h); right: -4px; bottom: 8px; width: 8px; cursor: ew-resize; }
+.cs-rz-s { left: 8px; right: 8px; bottom: -4px; height: 8px; cursor: ns-resize; }
+.cs-rz-se { right: -5px; bottom: -5px; width: 14px; height: 14px; cursor: nwse-resize; }
+/* 手柄平时无形,hover 画板时右/下缘现出细提示线 */
+.cs-board:hover .cs-rz-e { border-right: 2px solid var(--cs-line-strong); }
+.cs-board:hover .cs-rz-s { border-bottom: 2px solid var(--cs-line-strong); }
+.cs-rz:hover { border-color: var(--cs-accent) !important; }
+
+.cs-bgbtn {
+  flex: none;
+  padding: 1px 4px;
+  border: none;
+  background: transparent;
+  color: var(--cs-text-faint);
+  font: 11px/1 var(--cs-mono);
+  cursor: pointer;
+}
+.cs-bgbtn:hover { color: var(--cs-text); }
+.cs-bgbtn.is-on { color: var(--cs-pin); }
+
+#cs-push {
+  padding: var(--cs-sp-2) var(--cs-sp-5);
+  border: 1px solid transparent;
+  border-radius: var(--cs-r-2);
+  background: var(--cs-accent);
+  color: var(--cs-fg-on-accent);
+  font: var(--cs-fw-medium) var(--cs-fs-xs)/1.6 var(--cs-ff-sans);
+  cursor: pointer;
+  transition: opacity var(--cs-dur-1) var(--cs-ease);
+}
+#cs-push:hover { opacity: 0.85; }
+
+/* ---------- 推送会话选择器 ---------- */
+
+.cs-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.cs-picker .cs-card { min-width: 320px; }
+
+.cs-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 4px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--cs-line);
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-surface-2);
+  color: var(--cs-text);
+  font: 13px/1 var(--cs-mono);
+  text-align: left;
+  cursor: pointer;
+}
+.cs-picker-row:hover { border-color: var(--cs-accent); background: var(--cs-surface-3); }
+
+.cs-picker-status {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font: 600 9px/1 var(--cs-mono);
+  text-transform: uppercase;
+  background: var(--cs-surface-3);
+  color: var(--cs-text-faint);
+}
+.cs-picker-status.is-idle { color: var(--cs-ok); }
+.cs-picker-status.is-busy { color: var(--cs-pin); }
+
+/* ---------- toast:一次性回执(不再被 hover 反查擦掉) ---------- */
+
+#cs-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: var(--cs-z-overlay);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--cs-sp-2);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.cs-toast {
+  max-width: min(560px, 70vw);
+  padding: var(--cs-sp-4) var(--cs-sp-6);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-3);
+  background: var(--cs-s1);
+  color: var(--cs-fg);
+  font: var(--cs-fw-medium) var(--cs-fs-sm)/1.4 var(--cs-ff-sans);
+  box-shadow: var(--cs-e2), var(--cs-edge);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--cs-dur-2) var(--cs-ease-out),
+    transform var(--cs-dur-2) var(--cs-ease-out);
+}
+.cs-toast.is-in { opacity: 1; transform: translateY(0); }
+
+/* 左侧色条编码状态,不给整条上色(整条上色在暗底上太吵) */
+.cs-toast.is-ok    { border-left: 3px solid var(--cs-ok); }
+.cs-toast.is-warn  { border-left: 3px solid var(--cs-warn); }
+.cs-toast.is-error { border-left: 3px solid var(--cs-danger); }
+
+/* ---------- 左侧图层列表(替代小地图:能搜、能显隐、能看路由) ---------- */
+
+:root { --cs-sb-w: 236px; }
+
+#cs-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--cs-sb-w);
+  z-index: var(--cs-z-chrome);
+  display: flex;
+  flex-direction: column;      /* 头固定、列表自己滚 */
+  min-height: 0;
+  border-right: 1px solid var(--cs-line);
+  background: var(--cs-s1);
+  box-shadow: var(--cs-e2);
+  transition: transform var(--cs-dur-3) var(--cs-ease);
+}
+body[data-sidebar="off"] #cs-sidebar { transform: translateX(-100%); }
+/* 侧栏占位:画布内容整体右移,免得被压住 */
+body:not([data-sidebar="off"]) #cs-topbar { left: calc(var(--cs-sb-w) + 14px); }
+body:not([data-sidebar="off"]) #cs-hud { left: calc(var(--cs-sb-w) + 16px); }
+
+.cs-sb-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-sp-3);
+  padding: var(--cs-sp-5) var(--cs-sp-5) var(--cs-sp-4);
+  border-bottom: 1px solid var(--cs-line);
+}
+.cs-sb-title {
+  color: var(--cs-fg-3);
+  font: var(--cs-fw-bold) var(--cs-fs-micro)/1 var(--cs-ff-sans);
+  letter-spacing: var(--cs-track-wide);
+  text-transform: uppercase;
+}
+.cs-sb-search {
+  width: 100%;
+  padding: var(--cs-sp-3) var(--cs-sp-4);
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-2);
+  background: var(--cs-s2);
+  color: var(--cs-fg);
+  font: var(--cs-fs-sm)/1.2 var(--cs-ff-sans);
+}
+.cs-sb-search::placeholder { color: var(--cs-fg-4); }
+
+/* 导航容器:自成有界滚动区,滚动条隐形但滚得动,滚到底不带走画布 */
+.cs-sb-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--cs-sp-3) var(--cs-sp-3) var(--cs-sp-7);
+  scrollbar-width: none;
+}
+.cs-sb-list::-webkit-scrollbar { display: none; }
+
+.cs-sb-section {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-sp-3);
+  margin: var(--cs-sp-5) var(--cs-sp-2) var(--cs-sp-2);
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-bold) var(--cs-fs-xs)/1 var(--cs-ff-sans);
+}
+.cs-sb-section:first-child { margin-top: var(--cs-sp-2); }
+.cs-sb-count {
+  padding: 1px var(--cs-sp-2);
+  border-radius: var(--cs-r-full);
+  background: var(--cs-s3);
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-micro)/1.5 var(--cs-ff-mono);
+}
+.cs-sb-file {
+  margin: var(--cs-sp-4) var(--cs-sp-2) var(--cs-sp-1);
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-micro)/1.4 var(--cs-ff-mono);
+}
+
+.cs-sb-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--cs-r-2);
+}
+.cs-sb-row:hover { background: var(--cs-s2); }
+.cs-sb-row.is-active { background: var(--cs-s3); }
+.cs-sb-row.is-hidden-board .cs-sb-name { color: var(--cs-fg-4); text-decoration: line-through; }
+
+.cs-sb-go {
+  flex: 1 1 auto;
+  min-width: 0;                /* 名字要能收缩,省略号才生效 */
+  display: flex;
+  align-items: center;
+  gap: var(--cs-sp-3);
+  padding: var(--cs-sp-3) var(--cs-sp-2);
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cs-sb-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--cs-r-full);
+  background: currentColor;
+}
+.cs-sb-go[data-kind="screen"] .cs-sb-dot { color: var(--cs-kind-screen); }
+.cs-sb-go[data-kind="component"] .cs-sb-dot { color: var(--cs-kind-component); }
+.cs-sb-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cs-fg);
+  font: var(--cs-fs-sm)/1.3 var(--cs-ff-sans);
+}
+.cs-sb-route {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-micro)/1.3 var(--cs-ff-mono);
+}
+.cs-sb-eye {
+  flex: none;
+  width: 26px;
+  padding: var(--cs-sp-2) 0;
+  border: 0;
+  background: none;
+  color: var(--cs-fg-4);
+  font: var(--cs-fs-xs)/1 var(--cs-ff-sans);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--cs-dur-1) var(--cs-ease), color var(--cs-dur-1) var(--cs-ease);
+}
+.cs-sb-row:hover .cs-sb-eye, .cs-sb-row.is-hidden-board .cs-sb-eye { opacity: 1; }
+.cs-sb-eye:hover { color: var(--cs-fg); }
+.cs-sb-empty { padding: var(--cs-sp-6) var(--cs-sp-4); color: var(--cs-fg-4); font-size: var(--cs-fs-sm); }
+
+#cs-sb-toggle {
+  padding: 2px var(--cs-sp-3);
+  border: 0;
+  border-radius: var(--cs-r-1);
+  background: none;
+  color: var(--cs-fg-3);
+  font-size: var(--cs-fs-md);
+  cursor: pointer;
+}
+#cs-sb-toggle:hover { color: var(--cs-fg); background: var(--cs-s3); }
+
+/* ---------- 世界里的分区标题 ---------- */
+
+.cs-section-title {
+  position: absolute;
+  display: flex;
+  align-items: baseline;
+  gap: var(--cs-sp-3);
+  color: var(--cs-fg-2);
+  font: var(--cs-fw-bold) var(--cs-fs-md)/1 var(--cs-ff-sans);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.cs-section-title[hidden] { display: none; }
+.cs-section-count {
+  color: var(--cs-fg-4);
+  font: var(--cs-fs-xs)/1 var(--cs-ff-mono);
+}
+
+/* 拖动中的画板:抬起来 + 跟手 */
+.cs-board.is-dragging {
+  z-index: var(--cs-z-board-up);
+  cursor: grabbing;
+}
+.cs-board.is-dragging .cs-frame { box-shadow: var(--cs-e3); outline-color: var(--cs-accent); }
+.cs-board[hidden] { display: none; }
+
+/* 页面画板标题条上的路由 */
+.cs-board-title .cs-args-n.cs-route {
+  opacity: 1;                     /* 路由是主信息,不跟着 args 计数一起淡出 */
+  padding: 1px var(--cs-sp-3);
+  border-radius: var(--cs-r-1);
+  background: var(--cs-s2);
+  color: var(--cs-kind-screen);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 选中的 pin:环起来,表明它现在听键盘 */
+.cs-pin.is-selected {
+  box-shadow: 0 0 0 3px var(--cs-accent), 0 0 0 6px var(--cs-accent-32);
+  z-index: 4;
+}

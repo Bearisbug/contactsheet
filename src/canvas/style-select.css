@@ -1,0 +1,10 @@
+/* select 模块样式 —— 由对应 agent 维护,避免并行编辑 style.css 冲突 */
+
+/* 高亮框的标签:left/top/max-width 由 select.ts 的 placeTag() 每次绘制时按画板可视区
+   内联算出(它是屏幕坐标层的东西,不吃画板的 overflow:hidden,不管就会飘到画板外面)。
+   这里只兜"宽度放不下怎么收尾":长 selector 用省略号截断,绝不靠 nowrap 一路顶出画板。 */
+.cs-box .cs-box-tag {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}

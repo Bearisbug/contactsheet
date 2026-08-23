@@ -1,0 +1,53 @@
+{
+  "name": "contactsheet",
+  "version": "0.1.0",
+  "description": "把你 UI 的各种状态摊在一面可缩放的墙上 —— 附着在 Next.js repo 上的联络表",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "contactsheet": "dist/cli.js",
+    "csheet": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "dev": "node build.mjs --watch",
+    "prepublishOnly": "node build.mjs && tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "chokidar": "^4.0.3",
+    "http-proxy": "^1.18.1",
+    "playwright-core": "^1.62.1",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/http-proxy": "^1.17.16",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bearisbug/contactsheet.git"
+  },
+  "homepage": "https://github.com/Bearisbug/contactsheet#readme",
+  "bugs": {
+    "url": "https://github.com/Bearisbug/contactsheet/issues"
+  },
+  "keywords": [
+    "nextjs",
+    "canvas",
+    "artboard",
+    "design-review",
+    "claude-code",
+    "storybook-alternative",
+    "ui-wall"
+  ]
+}

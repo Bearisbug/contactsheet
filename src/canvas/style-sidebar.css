@@ -1,0 +1,132 @@
+/* sidebar 模块样式 —— 由对应 agent 维护,避免并行编辑 style.css 冲突 */
+
+/* 导航容器的滚动契约由本文件兜底(不依赖 style.css 的那份):
+   两条隐藏滚动条的写法都要写 —— 标准属性管 Firefox,伪元素管 WebKit/Blink,
+   缺哪条就在哪个引擎里露出滚动条并吃掉宽度;contain 保证滚到底不把画布一起带走。 */
+.cs-sb-list {
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.cs-sb-list::-webkit-scrollbar {
+  display: none;
+}
+/* 滚动条藏了,"下面还有"就得有别的说法:两层跟着内容走的遮罩(local)+ 两层钉在
+   容器边缘的渐隐(scroll)。滚到顶/底时遮罩正好盖住渐隐,只有中间态才现出来 ——
+   纯 CSS,不用监听滚动。颜色全取中性变量。 */
+.cs-sb-list {
+  background:
+    linear-gradient(var(--cs-s1) 40%, transparent) top / 100% 20px no-repeat local,
+    linear-gradient(transparent, var(--cs-s1) 60%) bottom / 100% 20px no-repeat local,
+    linear-gradient(var(--cs-line-2), transparent) top / 100% 8px no-repeat scroll,
+    linear-gradient(transparent, var(--cs-line-2)) bottom / 100% 8px no-repeat scroll;
+}
+
+/* ---------- 可折叠分组 ---------- */
+
+.cs-sb-items[hidden] {
+  display: none;
+}
+
+/* 分区标题行 / 文件标题行:左边折叠按钮撑满,右边批量显隐按钮 —— 两个独立目标 */
+.cs-sb-section,
+.cs-sb-file {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-sp-1);
+  margin: 0;
+}
+.cs-sb-section {
+  margin-top: var(--cs-sp-5);
+}
+.cs-sb-list > .cs-sb-group:first-child .cs-sb-section {
+  margin-top: 0;
+}
+.cs-sb-file {
+  margin-top: var(--cs-sp-3);
+}
+
+/* 文件分组的内容缩进一档,并用一条极淡的引导线标出层级(纯中性,不上色) */
+.cs-sb-group.is-file > .cs-sb-items {
+  margin-left: var(--cs-sp-4);
+  padding-left: var(--cs-sp-3);
+  border-left: 1px solid var(--cs-line);
+}
+
+/* ---------- 折叠按钮 ---------- */
+
+.cs-sb-caret {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cs-sp-3);
+  padding: var(--cs-sp-2);
+  border: 0;
+  border-radius: var(--cs-r-2);
+  background: none;
+  color: inherit;          /* 字号/字重跟随各自的标题行,折叠功能不改视觉语言 */
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--cs-dur-1) var(--cs-ease), color var(--cs-dur-1) var(--cs-ease);
+}
+.cs-sb-caret:hover {
+  background: var(--cs-s2);
+  color: var(--cs-fg);
+}
+
+.cs-sb-arrow {
+  flex: none;
+  width: 9px;
+  color: var(--cs-fg-3);
+  font-size: var(--cs-fs-micro);
+  line-height: 1;
+  transition: transform var(--cs-dur-1) var(--cs-ease);
+}
+.cs-sb-caret[aria-expanded="true"] .cs-sb-arrow {
+  transform: rotate(90deg);
+}
+
+.cs-sb-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 文件行的计数安静一点:一行里已经有两处徽记了,别再叠一个胶囊 */
+.cs-sb-file .cs-sb-count {
+  padding: 0;
+  background: none;
+}
+
+/* 单条显隐平时靠 hover 才现身(style.css),键盘走过来时也得现身 ——
+   焦点环画在一个 opacity:0 的按钮上等于没画 */
+.cs-sb-row:focus-within .cs-sb-eye {
+  opacity: 1;
+}
+
+/* ---------- 批量显隐:三态 ---------- */
+
+.cs-sb-bulk {
+  flex: none;
+  width: 26px;
+  padding: var(--cs-sp-2) 0;
+  border: 0;
+  border-radius: var(--cs-r-1);
+  background: none;
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-xs)/1 var(--cs-ff-sans);
+  cursor: pointer;
+  transition: background var(--cs-dur-1) var(--cs-ease), color var(--cs-dur-1) var(--cs-ease);
+}
+/* 三态靠字形区分(● 全显 / ◐ 部分 / ◌ 全隐),明度再补一档,不引入任何彩色 */
+.cs-sb-bulk[data-state="all"] { color: var(--cs-fg-2); }
+.cs-sb-bulk[data-state="some"] { color: var(--cs-fg-2); }
+.cs-sb-bulk[data-state="none"] { color: var(--cs-fg-3); }
+.cs-sb-bulk:hover {
+  background: var(--cs-s3);
+  color: var(--cs-fg);
+}

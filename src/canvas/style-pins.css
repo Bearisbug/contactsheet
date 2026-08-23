@@ -1,0 +1,104 @@
+/* pins 模块样式 —— 由对应 agent 维护,避免并行编辑 style.css 冲突 */
+
+/* ============================================================
+   1. pin → 气泡的透明桥接
+   气泡是 bottom:22px,底边与 18px 圆点之间隔着一条缝。鼠标穿过这条缝时,
+   事件落到底下的画板 overlay 上 —— 反查高亮会跟着乱闪,点一下还会选中气泡下方的元素
+   (用户截图里被高亮的就是它)。250ms 关闭宽限只挡住了"气泡消失",挡不住这件事。
+   办法:把缝补成 pin 自己的命中区,且**只在气泡打开时存在**,平时一像素都不挡画板。
+   ============================================================ */
+
+/* 一块矩形就够:横向铺满气泡宽度、纵向从圆点下沿一直盖到气泡底边(实测缝宽 8px)。
+   只做"上方一条窄带"是不够的 —— 气泡里的按钮在右下角,从圆点走过去是条斜线,
+   会从圆点**侧面**擦出去(实测 60 步里第 8~11 步落到画板上)。
+   定位基准是 pin 的 padding box(14×14,圆点 18px 减去 2px 边框)。 */
+.cs-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -2px;                 /* 盖住圆点下边框,四角(border-radius 之外)一并收进来 */
+  width: 288px;                 /* 比气泡(268px)略宽,斜着走向最右那个按钮也不掉出去 */
+  height: 26px;                 /* 到 padding box 上沿再往上 10px:压过 8px 的缝,咬进气泡 2px */
+  transform: translateX(-50%);
+  display: none;                /* 平时不存在 = 一像素都不挡画板 */
+}
+
+/* 打开的 pin:桥接生效,并抬到同层其它 pin 之上(同锚点的批注只横向错开 20px,挨得很近) */
+.cs-pin.is-open::after { display: block; }
+.cs-pin.is-open { z-index: 6; }
+
+/* 纯 :hover 那条只给真鼠标:触屏 tap 会留下假 hover,把这块命中区永久粘在画板上。
+   命中区只会变大、不改 pin 自己的盒子 —— 指针不会被甩出去,没有 hover 自激振荡。
+   (JS 的 .is-open 才是主路径,见 pins.ts 的 attachHoverGrace) */
+@media (hover: hover) and (pointer: fine) {
+  .cs-pin:hover::after { display: block; }
+  .cs-pin:hover { z-index: 6; }
+}
+
+/* ============================================================
+   2. 批注挂的参考图(气泡里 / 批注输入框里)
+   ============================================================ */
+
+.cs-ref-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cs-sp-2);
+  margin-top: var(--cs-sp-3);
+}
+.cs-ref-strip:empty { display: none; }   /* 没图就当它不存在,别留一条空隙 */
+
+.cs-ref-thumb {
+  width: 56px;
+  padding: 2px;
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-1);
+  background: var(--cs-s2);
+  cursor: zoom-in;
+}
+.cs-ref-thumb:hover { border-color: var(--cs-accent); }
+/* 固定比例 + 等比裁切:贴进来的截图长宽不可控,只给宽高会把竖图压扁;
+   槽位尺寸先定死,图到位时也不会把气泡撑得跳一下 */
+.cs-ref-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 2px;
+  background: var(--cs-s3);
+}
+.cs-ref-thumb .cs-ref-name {
+  display: block;
+  margin-top: 2px;
+  color: var(--cs-fg-3);
+  font: var(--cs-fs-micro)/1.2 var(--cs-ff-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 取不到图(外壳还没有取图路由 / 文件被删)→ 退化成文件名 chip,不留破图标 */
+.cs-ref-thumb.is-broken {
+  width: auto;
+  max-width: 100%;
+  padding: 2px var(--cs-sp-3);
+  cursor: default;
+}
+/* 必须显式 none:上面那条 `display:block` 的优先级高于 [hidden] 的 UA 样式,
+   只置 img.hidden 的话破图会以 alt 文本的形态继续占着 4:3 的槽位(实测过) */
+.cs-ref-thumb.is-broken img { display: none; }
+.cs-ref-thumb.is-broken .cs-ref-name { margin-top: 0; color: var(--cs-fg-4); }
+
+/* ============================================================
+   3. 右下角全局参考图坞的标题
+   说清楚这一列是"没有归属"的:归属到批注的图在 pin 气泡里,不在这
+   ============================================================ */
+
+#cs-refs .cs-refs-head {
+  order: 1;                     /* 坞是 column-reverse,标题压在最下面(离屏幕角最近) */
+  width: 84px;
+  padding: 2px 4px;
+  color: var(--cs-fg-3);
+  font: var(--cs-fw-bold) var(--cs-fs-micro)/1.3 var(--cs-ff-sans);
+  letter-spacing: var(--cs-track-wide);
+  text-align: center;
+  cursor: help;
+}

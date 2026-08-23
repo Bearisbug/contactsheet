@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.next/
+*.log
+.DS_Store
+nohup.out
+# e2e 会重新生成的产物
+spike/fixture-app/design/.canvas/shots/
+spike/fixture-app/design/.canvas/*.bak
