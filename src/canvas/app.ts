@@ -18,9 +18,21 @@ function showBootError(err: unknown): void {
   const boot = qs("#cs-boot")
   boot.textContent = ""
   const card = h("div", "cs-card")
-  // 5xx = 目标活着但注册表模块炸了(几乎总是某个画板文件有编译错误);连不上才是没起 dev server
-  const compileErr = /HTTP 5\d\d/.test(String(err))
-  if (compileErr) {
+  // 三种情况必须分开说,否则用户往错误的方向排查:
+  // 502/504 = 我们的代理连不上目标(dev server 没起,或起在别的端口 —— target 配错是重灾区);
+  // 其余 5xx = 目标活着但注册表模块炸了(几乎总是某个画板文件有编译错误);
+  // 非 HTTP = 连外壳自己都没连上。
+  const msg = String(err)
+  const target = state.info?.target ?? "http://localhost:3000"
+  if (/HTTP 50[24]/.test(msg)) {
+    card.appendChild(h("h2", undefined, "连不上你的 dev server"))
+    card.appendChild(
+      h("p", undefined, `外壳正把请求代理到 ${target},但那里没有响应。两种可能:dev server 还没起;或它跑在别的端口(去 package.json 的 dev script 看真实端口,改 contactsheet.config.json 的 target,或重启时加 --target)。`)
+    )
+    const p = h("p")
+    p.appendChild(h("code", undefined, "pnpm dev"))
+    card.appendChild(p)
+  } else if (/HTTP 5\d\d/.test(msg)) {
     card.appendChild(h("h2", undefined, "画板文件编译错误"))
     card.appendChild(
       h("p", undefined, "next dev 在跑,但画板注册表模块渲染失败 —— 通常是某个 *.artboard.tsx 有语法或 import 错误。去 next dev 的终端看具体报错,修好后这面墙会自动恢复。")
