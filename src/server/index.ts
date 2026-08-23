@@ -69,7 +69,15 @@ export async function startServer(cfg: CsConfig): Promise<{ port: number; close(
   // 只绑回环:画布没有鉴权,而 /__cs/api/push 能把任意文本以"用户发言"送进你的 Claude Code
   // 会话。裸绑 0.0.0.0 等于把这条执行链暴露给同一个 Wi-Fi 上的任何人。要 LAN 访问必须显式 --host。
   const host = cfg.host ?? "127.0.0.1"
-  const port = await listenWithFallback(server, cfg, host)
+  let twin: http.Server | null = null
+  const port = await listenWithFallback(server, cfg, host, (t) => {
+    twin = t
+    // 孪生的连接同样要进追踪表,否则 Ctrl-C 会卡在它的 keep-alive 上
+    t.on("connection", (sock) => {
+      sockets.add(sock)
+      sock.on("close", () => sockets.delete(sock))
+    })
+  })
   if (host !== "127.0.0.1" && host !== "localhost") {
     console.warn(
       warn(`监听在 ${host}:${port} —— 画布无鉴权,同网络的任何人都能读你的批注、并向你的 Claude Code 会话推送消息。只在可信网络这么做。`)
@@ -82,6 +90,9 @@ export async function startServer(cfg: CsConfig): Promise<{ port: number; close(
       sse.closeAll()
       proxyLog.close()
       proxy.close()
+      if (twin) {
+        await new Promise<void>((r) => twin!.close(() => r()))
+      }
       await new Promise<void>((resolve) => {
         const fallback = setTimeout(resolve, 2000) // 兜底:2 秒关不干净也照样退出
         for (const s of sockets) s.destroy()
@@ -194,19 +205,50 @@ async function occupiedBySameProject(cfg: CsConfig, port: number): Promise<boole
  * - 其余(默认/config 端口被别的进程占)→ 往上顺延找空位,最多 20 个,并醒目警告:
  *   换端口 = 换源,画布的本机记忆(画板位置/折叠/底色)按源隔离,MCP 与 hook 也仍指向旧端口。
  */
-async function listenWithFallback(server: http.Server, cfg: CsConfig, host: string): Promise<number> {
-  const tryListen = (port: number): Promise<boolean> =>
+async function listenWithFallback(
+  server: http.Server,
+  cfg: CsConfig,
+  host: string,
+  onTwin: (t: http.Server) => void
+): Promise<number> {
+  const listenOnce = (srv: http.Server, port: number, h: string): Promise<"ok" | "busy" | "nofam"> =>
     new Promise((resolve, reject) => {
       const onErr = (err: NodeJS.ErrnoException): void => {
-        if (err.code === "EADDRINUSE") resolve(false)
+        if (err.code === "EADDRINUSE") resolve("busy")
+        // 机器没启 IPv6 时 ::1 绑不了,不算冲突
+        else if (err.code === "EADDRNOTAVAIL" || err.code === "EAFNOSUPPORT") resolve("nofam")
         else reject(err)
       }
-      server.once("error", onErr)
-      server.listen(port, host, () => {
-        server.off("error", onErr)
-        resolve(true)
+      srv.once("error", onErr)
+      srv.listen(port, h, () => {
+        srv.off("error", onErr)
+        resolve("ok")
       })
     })
+
+  /**
+   * 一个端口要 127.0.0.1 和 ::1 **都**绑上才算真的空闲。
+   * 浏览器解析 localhost 普遍优先 ::1:只绑 v4 时,若 v6 侧被别人占着(实测 Docker 常年
+   * 端口转发在 IPv6 通配上),curl 一切正常、浏览器却拿到对方的 502/空响应 —— 这类"半瞎"
+   * 冲突必须当成端口被占处理。::1 上起的是共享同一 handler 的孪生 server。
+   * 用户显式指定了非回环 host(LAN)时不做孪生:绑的已经不是 localhost 这个名字了。
+   */
+  const tryListen = async (port: number): Promise<boolean> => {
+    const main = await listenOnce(server, port, host)
+    if (main !== "ok") return false
+    if (host !== "127.0.0.1") return true
+    const t = http.createServer(server.listeners("request")[0] as http.RequestListener)
+    for (const l of server.listeners("upgrade")) t.on("upgrade", l as (...a: unknown[]) => void)
+    const r = await listenOnce(t, port, "::1")
+    if (r === "ok") {
+      onTwin(t)
+      return true
+    }
+    if (r === "nofam") return true // 没有 IPv6,单栈即可
+    // v6 被别人占:这个端口对浏览器是坏的,整体让出去重试下一个
+    await new Promise<void>((res) => server.close(() => res()))
+    return false
+  }
 
   if (await tryListen(cfg.port)) return cfg.port
 

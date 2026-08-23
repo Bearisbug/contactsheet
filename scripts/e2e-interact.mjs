@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url"
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const FIXTURE = path.join(ROOT, "spike/fixture-app")
-const CS = "http://localhost:5199"
+// 专用端口:5199 可能被用户正在跑的 contactsheet 占着,撞上会把断言打到别人的画布上
+const CS = "http://localhost:5642"
 const results = []
 const ok = (name, cond, extra = "") => {
   results.push({ name, pass: !!cond })
@@ -38,7 +39,7 @@ let browser = null
 try {
   run("pnpm", ["dev"], FIXTURE)
   await waitHttp("http://localhost:3000/")
-  run("node", [path.join(ROOT, "dist/cli.js")], FIXTURE)
+  run("node", [path.join(ROOT, "dist/cli.js"), "--port", "5642"], FIXTURE)
   await waitHttp(`${CS}/__cs/api/state`)
 
   const { chromium } = await import("playwright-core")
@@ -175,6 +176,17 @@ try {
   await delay(300)
   const hits = await page.evaluate(() => window.__cs_hit())
   ok("真实鼠标点击穿透到按钮(pin 在场)", hits === 1, `命中 ${hits} 次`)
+
+  // 8b. 交互模式点非激活画板 → 有提示(零反馈会让人以为交互模式坏了)
+  const dBox = await page.locator(`.cs-board[data-id="${dangerEntry?.id}"] .cs-frame`).boundingBox()
+  if (dBox) {
+    await page.mouse.click(dBox.x + dBox.width / 2, dBox.y + dBox.height / 2)
+    await delay(400)
+    const hint = await page.evaluate(() => [...document.querySelectorAll(".cs-toast")].map((t) => t.textContent).join("|"))
+    ok("点非激活板有提示", /未激活/.test(hint), hint.slice(0, 40))
+  } else {
+    ok("点非激活板有提示", false, "危险板不在视口")
+  }
   await fetch(`${CS}/__cs/api/annotations/${tmpAnn.id}`, { method: "DELETE" })
   await page.keyboard.press("Escape")
   await delay(200)
@@ -244,6 +256,16 @@ try {
   await delay(300)
   const z1 = await page.evaluate(() => document.getElementById("cs-zoom").textContent)
   ok("Ctrl+wheel 缩放", z0 !== z1, `${z0} → ${z1}`)
+
+  // 12. 浏览模式下对着画板按 Backspace = 收起(侧栏可点回来)
+  await page.keyboard.press("Escape") // 确保回浏览模式
+  await delay(300)
+  await page.mouse.move(btnPoint.x, btnPoint.y) // hover 设 activeId
+  await delay(300)
+  await page.keyboard.press("Backspace")
+  await delay(400)
+  const hiddenNow = await page.evaluate((id) => document.querySelector(`.cs-board[data-id="${id}"]`)?.hidden === true, btnEntry.id)
+  ok("Backspace 收起画板", hiddenNow)
 
   await page.screenshot({ path: "/tmp/cs-e2e-interact.png" })
 } finally {

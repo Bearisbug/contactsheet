@@ -18,6 +18,8 @@ import {
   showSelection,
 } from "./select.js"
 import { state, type Board, type Mode } from "./state.js"
+import { toast } from "./toast.js"
+import { setHidden } from "./wall.js"
 import {
   MAX_SCALE, MIN_SCALE, applyView, fitAll, fitBoard, isPanning, setView, zoomReset, zoomStep,
 } from "./view.js"
@@ -141,6 +143,17 @@ function onKeyDown(e: KeyboardEvent): void {
     if (selectedPin()) {
       e.preventDefault()
       deleteSelectedPin()
+      return
+    }
+    // 浏览模式下对着画板按 Backspace = 收起它(不是删除 —— 侧栏随时点回来)。
+    // 只在浏览模式生效:交互/走查中按退格多半是想改 iframe 里的文字,不能把整块板收走
+    if (state.mode === "browse" && state.activeId) {
+      e.preventDefault()
+      const b = state.boards.get(state.activeId)
+      setHidden([state.activeId], true)
+      clearSelection()
+      setActive(null)
+      toast(`已收起「${b?.entry.exportName ?? state.activeId}」· 左侧列表随时点回来`, "info")
     }
     return
   }
@@ -233,7 +246,12 @@ function onClick(e: MouseEvent): void {
   if (!overlay) return
   const board = boardOf(target)
   if (!board) return
-  if (state.mode === "interact") return // 交互模式下别的画板点一下不抢焦点,要换板请双击
+  if (state.mode === "interact") {
+    // 不抢焦点是故意的(误触不该打断正在交互的板),但零反馈会让人以为"交互模式坏了":
+    // 压暗的板点不动 + 没有任何提示 = "我进入了交互模式但是不可以交互"
+    if (board.entry.id !== state.activeId) hintInactive(board)
+    return
+  }
   setActive(board.entry.id)
 
   const el = elementAt(board, e.clientX, e.clientY)
@@ -251,6 +269,18 @@ function onClick(e: MouseEvent): void {
   state.selection = { artboardId: board.entry.id, selector, x: rel.x, y: rel.y, ts: Date.now() }
   setProbe(`已选中 ${board.entry.exportName} → ${selector}`)
   postSelection(state.selection).catch((err) => setProbe(`selection 发送失败:${String(err)}`))
+}
+
+let lastHint = ""
+let lastHintAt = 0
+function hintInactive(board: Board): void {
+  const cur = state.boards.get(state.activeId ?? "")?.entry.exportName ?? "?"
+  setProbe(`交互中的是「${cur}」—— 要交互这块请双击它,Esc 退出交互`)
+  const now = Date.now()
+  if (lastHint === board.entry.id && now - lastHintAt < 4000) return
+  lastHint = board.entry.id
+  lastHintAt = now
+  toast(`「${board.entry.exportName}」未激活 · 双击它切换交互目标`, "info")
 }
 
 function onDblClick(e: MouseEvent): void {

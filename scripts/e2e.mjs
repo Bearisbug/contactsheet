@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url"
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const FIXTURE = path.join(ROOT, "spike/fixture-app")
-const CS = "http://localhost:5199"
+// 专用端口:5199 可能被用户正在跑的 contactsheet 占着,撞上会把断言打到别人的画布上
+const CS = "http://localhost:5641"
 const results = []
 const ok = (name, cond, extra = "") => {
   results.push({ name, pass: !!cond, extra })
@@ -44,7 +45,7 @@ try {
   ok("next dev 就绪", await waitHttp("http://localhost:3000/"))
 
   // 2. 起 contactsheet(在 fixture 目录下,像真实用户那样)
-  run("node", [path.join(ROOT, "dist/cli.js")], FIXTURE)
+  run("node", [path.join(ROOT, "dist/cli.js"), "--port", "5641"], FIXTURE)
   ok("contactsheet 就绪", await waitHttp(`${CS}/__cs/api/state`))
 
   // 3. 注入产物落盘了吗
