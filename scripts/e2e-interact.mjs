@@ -64,9 +64,9 @@ try {
   ok("找到 Button「默认」画板", (await board.count()) === 1, btnEntry?.id)
 
   // 1. 浏览模式 hover:HUD 反查
-  const frameBox = await board.locator(".cs-frame").boundingBox()
+  let frameBox = await board.locator(".cs-frame").boundingBox()
   // 组件本体(iframe 里的 button)的屏幕坐标:iframe rect + 元素 rect × 实际缩放
-  const btnPoint = await page.evaluate((id) => {
+  let btnPoint = await page.evaluate((id) => {
     const b = document.querySelector(`.cs-board[data-id="${id}"]`)
     const f = b.querySelector("iframe")
     const el = f.contentDocument.querySelector("button")
@@ -280,6 +280,59 @@ try {
   await delay(200)
   await page.keyboard.press("0")
   await delay(1000)
+
+  // 8f. 占位符原子删除:光标贴在 [图片 n] 右侧按 Backspace → 整个 token + 图一起消失,不留半截
+  const pb3 = await page.locator(`.cs-pin[data-ann-id="${tmpAnn.id}"]`).boundingBox()
+  await page.mouse.click(pb3.x + 5, pb3.y + 5)
+  await delay(300)
+  await page.keyboard.press("Enter") // 进编辑
+  await delay(400)
+  const atomic = await page.evaluate(() => {
+    const ta = document.querySelector(".cs-pin-edit")
+    const pos = ta.value.indexOf("]") + 1 // 第一个 token 的右边界
+    ta.focus()
+    ta.setSelectionRange(pos, pos)
+    return { before: ta.value.slice(0, 14) }
+  })
+  await page.keyboard.press("Backspace")
+  await delay(300)
+  const atomicAfter = await page.evaluate(() => {
+    const ta = document.querySelector(".cs-pin-edit")
+    const thumbs = document.querySelectorAll(".cs-pin-bubble.is-editing .cs-ref-thumb").length
+    return { head: ta.value.slice(0, 10), hasHalf: ta.value.includes("[图片") && !ta.value.includes("]"), thumbs }
+  })
+  ok("Backspace 整体删除占位符", atomicAfter.head.startsWith("开头这") && !atomicAfter.hasHalf,
+    `删前=${atomic.before} 删后头=${atomicAfter.head} 余图=${atomicAfter.thumbs}`)
+  await page.keyboard.press("Escape")
+  await delay(200)
+  await page.keyboard.press("Escape")
+  await delay(200)
+
+  // 8g. 刷新后锚点晚到:pin 不能永远孤儿(重试机制)
+  await page.reload({ waitUntil: "domcontentloaded" })
+  await page.waitForSelector(`.cs-pin[data-ann-id="${tmpAnn.id}"]`, { timeout: 30000 })
+  let orphanCleared = false
+  for (let i = 0; i < 20; i++) {
+    await delay(600)
+    const st = await page.evaluate((id) => {
+      const p = document.querySelector(`.cs-pin[data-ann-id="${id}"]`)
+      return p ? p.classList.contains("is-orphan") : null
+    }, tmpAnn.id)
+    if (st === false) { orphanCleared = true; break }
+  }
+  ok("刷新后 pin 找回锚点(不再永久孤儿)", orphanCleared)
+  // 刷新洗掉了视图与坐标,后续测试用的框坐标全部重取
+  await delay(1000)
+  frameBox = await board.locator(".cs-frame").boundingBox()
+  btnPoint = await page.evaluate((id) => {
+    const b = document.querySelector(`.cs-board[data-id="${id}"]`)
+    const f = b.querySelector("iframe")
+    const el = f.contentDocument.querySelector("button")
+    const fr = f.getBoundingClientRect()
+    const sc = fr.width / f.contentWindow.innerWidth
+    const r = el.getBoundingClientRect()
+    return { x: fr.left + (r.left + r.width / 2) * sc, y: fr.top + (r.top + r.height / 2) * sc }
+  }, btnEntry.id)
 
   await fetch(`${CS}/__cs/api/annotations/${tmpAnn.id}`, { method: "DELETE" })
 

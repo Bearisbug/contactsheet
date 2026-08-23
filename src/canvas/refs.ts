@@ -60,14 +60,63 @@ function onPaste(e: ClipboardEvent): void {
 /** refs 数组里的"上传中"占坑值:占位符先落文字,路径后到 */
 export const UPLOADING = "__uploading__"
 
+/** 摘掉某编号之后,把更大的编号全部 -1 */
+function renumberAfter(text: string, removed: number): string {
+  return text.replace(/\[图片 (\d+)\]/g, (m, d) => {
+    const n = Number(d)
+    return n > removed ? `[图片 ${n - 1}]` : m
+  })
+}
+
 /** 从文字里摘掉 [图片 n] 并把后面的编号全部 -1(和 refs 数组的 splice 同步) */
 export function removeRefToken(text: string, idx1: number): string {
-  return text
-    .replace(new RegExp(`\\[图片 ${idx1}\\]`, "g"), "")
-    .replace(/\[图片 (\d+)\]/g, (m, d) => {
-      const n = Number(d)
-      return n > idx1 ? `[图片 ${n - 1}]` : m
-    })
+  return renumberAfter(text.replace(new RegExp(`\\[图片 ${idx1}\\]`, "g"), ""), idx1)
+}
+
+/** 让 [图片 n] 在 Backspace/Delete 下整体删除(Claude Code 同款原子占位符):
+ *  光标贴着/在 token 里退格 = 整个 token 连同它的图一起摘掉并重编号,绝不留半截。
+ *  选区碰到 token 时把选区扩到 token 边界,选中的 token 全部整体移除。 */
+export function bindTokenAtomics(ta: HTMLTextAreaElement, refs: string[], redraw: () => void): void {
+  ta.addEventListener("keydown", (e) => {
+    if (e.key !== "Backspace" && e.key !== "Delete") return
+    const tokens = [...ta.value.matchAll(/\[图片 (\d+)\]/g)].map((m) => ({
+      n: Number(m[1]),
+      start: m.index ?? 0,
+      end: (m.index ?? 0) + m[0].length,
+    }))
+    if (tokens.length === 0) return
+    const s = ta.selectionStart ?? 0
+    const t = ta.selectionEnd ?? s
+
+    const dropRefs = (nums: number[]): void => {
+      // 按编号从大到小摘,splice 的下标才不会互相踩
+      for (const n of [...nums].sort((a, b) => b - a)) {
+        refs.splice(n - 1, 1)
+        ta.value = renumberAfter(ta.value, n)
+      }
+      redraw()
+    }
+
+    if (s === t) {
+      // 折叠光标:Backspace 吃左边,命中 (start, end];Delete 吃右边,命中 [start, end)
+      const hit = tokens.find((k) => (e.key === "Backspace" ? s > k.start && s <= k.end : s >= k.start && s < k.end))
+      if (!hit) return
+      e.preventDefault()
+      ta.setRangeText("", hit.start, hit.end, "start")
+      dropRefs([hit.n])
+      ta.setSelectionRange(hit.start, hit.start)
+      return
+    }
+    // 有选区:被碰到的 token 全部整体删,选区其余文本照删
+    const touched = tokens.filter((k) => k.start < t && k.end > s)
+    if (touched.length === 0) return
+    e.preventDefault()
+    const ns = Math.min(s, ...touched.map((k) => k.start))
+    const ne = Math.max(t, ...touched.map((k) => k.end))
+    ta.setRangeText("", ns, ne, "start")
+    dropRefs(touched.map((k) => k.n))
+    ta.setSelectionRange(ns, ns)
+  })
 }
 
 /** 光标处插入占位符(Claude Code 同款:图片在文字里有位置) */

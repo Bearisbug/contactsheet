@@ -3,7 +3,7 @@ import type { Annotation } from "../types.js"
 import { createAnnotation, deleteAnnotation, fetchContext, patchAnnotation, pushContext } from "./api.js"
 import { frameDoc, h, qs } from "./dom.js"
 import { setProbe, syncHud } from "./hud.js"
-import { UPLOADING, attachInline, refThumb, removeRefToken, setPasteTarget, uploadRef } from "./refs.js"
+import { UPLOADING, attachInline, bindTokenAtomics, refThumb, removeRefToken, setPasteTarget } from "./refs.js"
 import { toast } from "./toast.js"
 import { buildSelector, relPos } from "./select.js"
 import { state, type Board } from "./state.js"
@@ -19,6 +19,10 @@ export function initPins(): void {
 export function renderPins(): void {
   for (const board of state.boards.values()) renderBoardPins(board)
 }
+
+/** 锚点找不到时的重试表:SPA 页面 load 之后才异步渲出内容,首查失败不等于元素不存在。
+ *  指数退避最多 8 次(~22s);编辑中不重画(会把用户正在打的字毁掉) */
+const orphanRetries = new Map<string, number>()
 
 export function renderBoardPins(board: Board): void {
   const layer = board.pinLayerEl
@@ -74,6 +78,25 @@ export function renderBoardPins(board: Board): void {
     attachHoverGrace(pin)
     layer.appendChild(pin)
   })
+
+  // 有孤儿就排一次重试:刷新后 iframe 还没把内容渲出来时,锚点查一次失败是常态,
+  // 不重试的话 pin 就永远钉在左上角(实测)。找齐了就清计数,下次挂载重新来
+  const id = board.entry.id
+  if (layer.querySelector(".cs-pin.is-orphan")) {
+    const n = orphanRetries.get(id) ?? 0
+    if (n < 8) {
+      orphanRetries.set(id, n + 1)
+      setTimeout(() => {
+        const b = state.boards.get(id)
+        if (!b) return
+        // 用户正在这块板上编辑批注时不重画,宁可孤儿多站一会儿
+        if (b.pinLayerEl.querySelector(".is-editing")) return
+        renderBoardPins(b)
+      }, 600 * (n + 1))
+    }
+  } else {
+    orphanRetries.delete(id)
+  }
 }
 
 // ---------- pin 选中 + 键盘操作 ----------
@@ -230,6 +253,7 @@ function startEdit(box: HTMLElement, textEl: HTMLElement, ann: Annotation): void
     strip = next
   }
   redrawStrip()
+  bindTokenAtomics(ta, refs, redrawStrip) // 占位符整体删除,不留半截
   // 粘贴 = 光标处插 [图片 n] 占位符(Claude Code 同款:图有位置),上传完成回填路径
   setPasteTarget({
     el: box,
@@ -439,6 +463,7 @@ export function openComposer(board: Board, el: Element, clientX: number, clientY
     stripEl.replaceWith(next)
     stripEl = next
   }
+  bindTokenAtomics(ta as HTMLTextAreaElement, refs, redrawStrip) // 占位符整体删除,不留半截
   setPasteTarget({
     el: box,
     onFile: (file) => attachInline(ta as HTMLTextAreaElement, refs, file, redrawStrip),
