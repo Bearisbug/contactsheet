@@ -40,12 +40,18 @@ export function mimeOf(file: string): string {
   return MIME[path.extname(file)] ?? "application/octet-stream"
 }
 
-/** StateInfo.version 用;读不到就给个占位 */
-export function pkgVersion(): string {
+/** StateInfo.version 用;读不到就给个占位。
+ *  必须在进程启动时定格:每次现读的话,旧进程会报出磁盘上的**新**版本号,
+ *  端口被占时的版本比对在"升级"这个最需要它的场景恰好失明(实测) */
+const VERSION: string = (() => {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(pkgRoot, "package.json"), "utf8")) as { version?: string }
     return pkg.version ?? "0.0.0"
   } catch {
     return "0.0.0"
   }
+})()
+
+export function pkgVersion(): string {
+  return VERSION
 }

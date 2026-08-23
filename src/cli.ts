@@ -81,6 +81,10 @@ async function up(flags: Partial<CsConfig>): Promise<void> {
     if (closing) return
     closing = true
     console.log(dim(`\n[contactsheet] 收到 ${sig},正在退出…`))
+    // 整个退出流程的硬时限:watcher/browser 的 close 任何一步挂死,都不能把进程变成
+    // "收过 TERM 却还在监听"的活尸 —— 实测这种活尸会应答同项目探测,把升级重启劝退
+    const deadline = setTimeout(() => process.exit(0), 5000)
+    deadline.unref()
     if (watcher) await quiet(() => watcher.close())
     await quiet(() => server.close())
     await quiet(() => closeBrowser())

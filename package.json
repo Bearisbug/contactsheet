@@ -1,6 +1,6 @@
 {
   "name": "contactsheet",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "把你 UI 的各种状态摊在一面可缩放的墙上 —— 附着在 Next.js repo 上的联络表",
   "license": "MIT",
   "type": "module",
