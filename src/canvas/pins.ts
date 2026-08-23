@@ -3,7 +3,7 @@ import type { Annotation } from "../types.js"
 import { createAnnotation, deleteAnnotation, fetchContext, patchAnnotation, pushContext } from "./api.js"
 import { frameDoc, h, qs } from "./dom.js"
 import { setProbe, syncHud } from "./hud.js"
-import { refThumb, setPasteTarget, uploadRef } from "./refs.js"
+import { UPLOADING, attachInline, refThumb, removeRefToken, setPasteTarget, uploadRef } from "./refs.js"
 import { toast } from "./toast.js"
 import { buildSelector, relPos } from "./select.js"
 import { state, type Board } from "./state.js"
@@ -137,12 +137,16 @@ function attachHoverGrace(pin: HTMLElement): void {
   })
 }
 
-/** 一条批注挂的参考图:「图片 n」占位符 + 缩略图预览,点开大图,✕ 移除 */
-function refStrip(paths: string[], onRemove?: (path: string) => void): HTMLElement {
+/** 一条批注挂的参考图:「图片 n」占位符 + 缩略图预览,点开大图,✕ 移除(按下标,与正文 [图片 n] 同步) */
+function refStrip(paths: string[], onRemove?: (idx: number) => void): HTMLElement {
   const strip = h("div", "cs-ref-strip")
-  paths.forEach((p, i) =>
-    strip.appendChild(refThumb(p, { index: i + 1, onRemove: onRemove ? () => onRemove(p) : undefined }))
-  )
+  paths.forEach((p, i) => {
+    if (p === UPLOADING) {
+      strip.appendChild(h("div", "cs-ref-thumb is-broken", `图片 ${i + 1} · 上传中…`))
+      return
+    }
+    strip.appendChild(refThumb(p, { index: i + 1, onRemove: onRemove ? () => onRemove(i) : undefined }))
+  })
   return strip
 }
 
@@ -152,9 +156,13 @@ function bubble(ann: Annotation): HTMLElement {
   box.appendChild(textEl)
   if (ann.refs?.length) {
     box.appendChild(
-      refStrip(ann.refs, (path) => {
-        const next = (ann.refs ?? []).filter((r) => r !== path)
-        void transition(ann.id, { refs: next }, "参考图已移除(文件保留在 refs/ 里)")
+      refStrip(ann.refs, (idx) => {
+        const next = (ann.refs ?? []).filter((_, i) => i !== idx)
+        void transition(
+          ann.id,
+          { refs: next, text: removeRefToken(ann.text, idx + 1) },
+          "参考图已移除(文件保留在 refs/ 里)"
+        )
       })
     )
   }
@@ -212,8 +220,9 @@ function startEdit(box: HTMLElement, textEl: HTMLElement, ann: Annotation): void
   // 编辑态的 strip 整个重建:增删都只动暂存数组,「保存」时一并 PATCH
   let strip = box.querySelector<HTMLElement>(".cs-ref-strip")
   const redrawStrip = (): void => {
-    const next = refStrip(refs, (path) => {
-      refs.splice(refs.indexOf(path), 1)
+    const next = refStrip(refs, (idx) => {
+      refs.splice(idx, 1)
+      ta.value = removeRefToken(ta.value, idx + 1) // 正文里的 [图片 n] 同步摘掉并重编号
       redrawStrip()
     })
     if (strip?.isConnected) strip.replaceWith(next)
@@ -221,17 +230,10 @@ function startEdit(box: HTMLElement, textEl: HTMLElement, ann: Annotation): void
     strip = next
   }
   redrawStrip()
+  // 粘贴 = 光标处插 [图片 n] 占位符(Claude Code 同款:图有位置),上传完成回填路径
   setPasteTarget({
     el: box,
-    onFile: (file) => {
-      void uploadRef(file)
-        .then((path) => {
-          refs.push(path)
-          redrawStrip()
-          toast(`参考图已上传 —— 点「保存」后才挂到这条批注`, "ok")
-        })
-        .catch((err) => toast(`参考图上传失败:${String(err)}`, "error"))
-    },
+    onFile: (file) => attachInline(ta, refs, file, redrawStrip),
   })
   ta.addEventListener("keydown", (e) => {
     e.stopPropagation() // 编辑时不触发画布快捷键
@@ -250,6 +252,7 @@ function startEdit(box: HTMLElement, textEl: HTMLElement, ann: Annotation): void
   const save = h("button", "cs-x", "保存")
   save.addEventListener("click", (e) => {
     e.stopPropagation()
+    if (refs.includes(UPLOADING)) return toast("有图片还在上传,稍等一下再保存", "warn")
     const text = ta.value.trim()
     const textChanged = !!text && text !== ann.text
     const refsChanged = JSON.stringify(refs) !== JSON.stringify(ann.refs ?? [])
@@ -423,19 +426,22 @@ export function openComposer(board: Board, el: Element, clientX: number, clientY
   composer = box
   ta.focus()
 
-  // 输入框开着时粘贴的图归这条批注(随创建请求一起提交),不再进全局坞
+  // 输入框开着时粘贴的图归这条批注(随创建请求一起提交),不再进全局坞。
+  // 粘贴 = 光标处插 [图片 n] 占位符,✕ 摘掉时正文同步重编号
   const refs: string[] = []
+  let stripEl = strip
+  const redrawStrip = (): void => {
+    const next = refStrip(refs, (idx) => {
+      refs.splice(idx, 1)
+      ta.value = removeRefToken(ta.value, idx + 1)
+      redrawStrip()
+    })
+    stripEl.replaceWith(next)
+    stripEl = next
+  }
   setPasteTarget({
     el: box,
-    onFile: (file) => {
-      void uploadRef(file)
-        .then((path) => {
-          refs.push(path)
-          strip.appendChild(refThumb(path))
-          setProbe(`参考图已挂到这条批注:${path}`)
-        })
-        .catch((err) => toast(`参考图上传失败:${String(err)}`, "error"))
-    },
+    onFile: (file) => attachInline(ta as HTMLTextAreaElement, refs, file, redrawStrip),
   })
 
   ta.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -445,6 +451,7 @@ export function openComposer(board: Board, el: Element, clientX: number, clientY
       exitPinMode()
     } else if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
+      if (refs.includes(UPLOADING)) return toast("有图片还在上传,稍等一下再提交", "warn")
       const text = ta.value.trim()
       if (!text) {
         closeComposer()

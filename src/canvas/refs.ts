@@ -57,6 +57,55 @@ function onPaste(e: ClipboardEvent): void {
   }
 }
 
+/** refs 数组里的"上传中"占坑值:占位符先落文字,路径后到 */
+export const UPLOADING = "__uploading__"
+
+/** 从文字里摘掉 [图片 n] 并把后面的编号全部 -1(和 refs 数组的 splice 同步) */
+export function removeRefToken(text: string, idx1: number): string {
+  return text
+    .replace(new RegExp(`\\[图片 ${idx1}\\]`, "g"), "")
+    .replace(/\[图片 (\d+)\]/g, (m, d) => {
+      const n = Number(d)
+      return n > idx1 ? `[图片 ${n - 1}]` : m
+    })
+}
+
+/** 光标处插入占位符(Claude Code 同款:图片在文字里有位置) */
+function insertAtCursor(ta: HTMLTextAreaElement, token: string): void {
+  const start = ta.selectionStart ?? ta.value.length
+  const end = ta.selectionEnd ?? start
+  ta.setRangeText(token, start, end, "end")
+  ta.dispatchEvent(new Event("input", { bubbles: true }))
+}
+
+/**
+ * 粘贴一张图到 (textarea, refs):立刻在光标处插 [图片 n] 并在 refs 占坑,
+ * 上传完成回填路径;失败摘掉占位符并重编号。n = 粘贴顺序,不随文字里的位置变。
+ * (两张图并发粘贴且第一张失败时,第二张的坑位会前移 —— 顺序粘贴不受影响,接受这个边界)
+ */
+export function attachInline(
+  ta: HTMLTextAreaElement,
+  refs: string[],
+  file: File,
+  redraw: () => void
+): void {
+  const n = refs.length + 1
+  refs.push(UPLOADING)
+  insertAtCursor(ta, `[图片 ${n}]`)
+  redraw()
+  void uploadRef(file)
+    .then((path) => {
+      refs[n - 1] = path
+      redraw()
+    })
+    .catch((err) => {
+      refs.splice(n - 1, 1)
+      ta.value = removeRefToken(ta.value, n)
+      redraw()
+      toast(`参考图上传失败:${String(err)}`, "error")
+    })
+}
+
 /** 上传一张图,返回 repo 相对路径(失败抛) */
 export async function uploadRef(file: File): Promise<string> {
   const dataUrl = await readDataUrl(file)

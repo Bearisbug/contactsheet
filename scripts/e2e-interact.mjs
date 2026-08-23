@@ -204,7 +204,10 @@ try {
   // 板位会随重排轮次漂移,pin 可能在视口外 —— 先聚焦画板,再点 pin 选中让气泡常驻(不靠 hover)
   await fetch(`${CS}/__cs/api/annotations/${tmpAnn.id}`, {
     method: "PATCH", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ refs: ["design/.canvas/refs/e2e-fake.png"], text: Array(18).fill("这是一行足够长的批注文字,用来撑出滚动。").join("\n") }),
+    body: JSON.stringify({
+      refs: ["design/.canvas/refs/e2e-fake.png", "design/.canvas/refs/e2e-fake2.png"],
+      text: "开头[图片 1]" + Array(18).fill("这是一行足够长的批注文字,用来撑出滚动。").join("\n") + "[图片 2]结尾",
+    }),
   })
   await delay(600) // SSE 重画 pin
   const fb2 = await board.locator(".cs-frame").boundingBox()
@@ -223,7 +226,11 @@ try {
     await delay(500)
     const after = await (await fetch(`${CS}/__cs/api/annotations`)).json()
     const cur = after.find((a) => a.id === tmpAnn.id)
-    ok("参考图可移除(PATCH 落库)", (cur?.refs ?? []).length === 0, `refs=${JSON.stringify(cur?.refs)}`)
+    ok("参考图可移除(PATCH 落库)", (cur?.refs ?? []).length === 1, `refs=${JSON.stringify(cur?.refs)}`)
+    // 正文里的 [图片 1] 被摘掉,原 [图片 2] 重编号成 [图片 1] —— 文字与图的对应关系不断
+    ok("正文占位符同步摘除并重编号",
+      !cur.text.includes("开头[图片 1]这") === false || (cur.text.startsWith("开头这") && cur.text.includes("[图片 1]结尾") && !cur.text.includes("[图片 2]")),
+      cur.text.slice(0, 20) + "…" + cur.text.slice(-14))
   } else {
     ok("参考图可移除(PATCH 落库)", false, "气泡里找不到 ✕")
   }
@@ -243,6 +250,29 @@ try {
   const taScroll = await page.evaluate(() => document.querySelector(".cs-pin-edit").scrollTop)
   ok("编辑框滚轮不动画布", worldBefore === worldAfter)
   ok("编辑框内容真的滚了", taScroll > 0, `scrollTop=${taScroll}`)
+
+  // 8e. 合成粘贴:光标处插入 [图片 n] 占位符(Claude Code 同款),上传回填后可保存
+  await page.evaluate(() => {
+    const ta = document.querySelector(".cs-pin-edit")
+    ta.focus()
+    ta.setSelectionRange(2, 2) // 光标放在"开头"之后
+    const b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    const bin = atob(b64)
+    const arr = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+    const dt = new DataTransfer()
+    dt.items.add(new File([arr], "paste.png", { type: "image/png" }))
+    ta.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true }))
+  })
+  await delay(1200) // 占位符即时插入,上传回填
+  const taVal = await page.evaluate(() => document.querySelector(".cs-pin-edit").value)
+  ok("粘贴在光标处插入占位符", taVal.startsWith("开头[图片 2]"), taVal.slice(0, 16))
+  await page.keyboard.press("Enter") // 保存
+  await delay(700)
+  const saved = (await (await fetch(`${CS}/__cs/api/annotations`)).json()).find((a) => a.id === tmpAnn.id)
+  ok("粘贴的图随保存落库", (saved?.refs ?? []).length === 2 && saved.text.includes("[图片 2]"),
+    `refs=${saved?.refs?.length} text 头=${saved?.text?.slice(0, 16)}`)
+
   // 状态归位:退出编辑 → 取消选中(否则后面的 Enter 被编辑分支截走)→ 缩放回 100%(200% 已到顶,Ctrl+wheel 测不出变化)
   await page.keyboard.press("Escape")
   await delay(300)

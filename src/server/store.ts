@@ -156,7 +156,8 @@ export async function buildContextText(cfg: CsConfig): Promise<string> {
       const where = [a.artboardId, a.anchor?.selector].filter(Boolean).join(" @ ")
       // #seq 与墙上 pin 圆点的数字一致(人说"批注 3"就是它);方括号里的 id 给 PATCH 用
       lines.push(`- #${a.seq} [${a.id}] ${where ? where + " —— " : ""}${a.text}`)
-      for (const ref of a.refs ?? []) lines.push(`  参考图:${ref}`)
+      // 编号与正文里的 [图片 n] 占位符一一对应:Claude 看到 [图片 2] 就去下面找 图片 2 的路径
+      ;(a.refs ?? []).forEach((ref, i) => lines.push(`  图片 ${i + 1}:${ref}`))
     }
   }
   return lines.join("\n") + "\n"

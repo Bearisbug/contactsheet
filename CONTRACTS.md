@@ -154,6 +154,7 @@ export function runInit(cwd: string, flags: Partial<CsConfig>): Promise<void>
   - **走查**(选中画板后按 Enter):该画板 iframe 全屏铺满,Esc 退出。
 - pin 批注:浏览模式按 `c` 后点击元素 → 内联输入框 → POST annotations(带 anchor)。已有 pin 画成小圆点,hover 出气泡(文本+status),气泡里可 resolve(PATCH)。
   气泡里的 refs 显示为「图片 n」占位符 + 缩略图(✕ 移除:展示态立即 PATCH,编辑态暂存到「保存」;移除只解绑不删文件)。
+  **行内占位符**:粘贴在光标处插 `[图片 n]`(n=粘贴顺序,refs 下标+1;上传中 refs 占坑 `__uploading__`,保存/提交被挡);✕ 移除时正文 `removeRefToken` 摘掉该编号并把更大的编号全部 -1,与 refs.splice 严格同步。buildContextText 的参考图行是 `  图片 n:<路径>`,与正文编号一一对应。
   **画布 wheel 监听必须放行 `.cs-pin-bubble`/`.cs-pin-input` 内的滚轮**(view.ts):否则批注编辑框里滚动滚的是整面墙;配套 `overscroll-behavior: contain` + 定制滚动条(RESP-015)、textarea `resize:none`。
   **pin 圆点显示 `Annotation.seq`(项目内永久序号)**:创建时由服务端按全表 max+1 分配(含 verified,核验不释放号);旧数据在 readAnnotations 时按文件顺序确定性补号,随下一次写落盘。buildContextText 的每条批注前缀 `#seq`,与墙上数字一致 —— 禁止退回"本板内 i+1"编号:那会出现多个"1",且前面的批注核验后后面全体变号。
 - 贴图:document paste 事件收图片 → POST `/__cs/api/refs`。**按上下文路由**:批注输入框/气泡编辑态用 `setPasteTarget()` 登记自己(元素从 DOM 摘掉即自动失效),此时图挂到那条批注的 `refs`;没有 target 才进右下角的全局坞。气泡编辑态里的图**不立刻 PATCH** —— 立刻 PATCH 会经 SSE 触发 renderPins,把用户正在打的字连输入框一起冲掉;跟文字一起在「保存」时提交。
