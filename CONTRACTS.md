@@ -166,8 +166,10 @@ export function runInit(cwd: string, flags: Partial<CsConfig>): Promise<void>
 - `startServer` 返回 `{ port, close }`,`port` 是**实际**监听端口(可能顺延),banner 必须用它。
 - **双栈绑定**:默认 host 下同时绑 `127.0.0.1` 与 `::1`(共享同一 request/upgrade handler 的孪生 server;孪生的连接同样进 socket 追踪表)。一个端口 v4+v6 **都绑上才算空闲**,v6 被占(Docker 端口转发常蹲 IPv6 通配)也走顺延 —— 只绑 v4 会出现"curl 正常、浏览器 502"的半瞎冲突。机器没有 IPv6(EADDRNOTAVAIL/EAFNOSUPPORT)时单栈放行。显式非回环 host 不做孪生。
 - 交互模式:单击非激活画板**不切换**(误触不打断),但必须给反馈(probe + toast「双击它切换」,同板 4 秒节流);Backspace 在浏览模式、无选中 pin 时收起当前激活画板(setHidden,非删除,toast 告知去向)。
-- 被占时:先探 `/__cs/api/state` —— 同 projectRoot 的 contactsheet → 打印地址 `exit(0)`;
-  显式 `--port`(`cfg.portExplicit`)→ 报错不猜;其余 → 顺延 ≤20 个并警告(换端口=换源,本机记忆隔离,MCP/hook 仍指旧端口)。
+- 被占时(**0.1.6 起禁止顺延**,实测事故:顺延后升级静默失效、mcp/hook 指向旧进程且无人收到错误):
+  先探 `/__cs/api/state`(超时 2.5s、重试 2 轮 —— 旧实例正忙时 800ms 一枪打空会把同项目误判成陌生进程)——
+  同 projectRoot 且**版本相同** → 打印地址 `exit(0)`;版本不同 → `exit(1)` 提示 kill 旧实例;
+  陌生进程 → 硬失败,报错带占用者 PID(lsof 尽力而为)。
 - init 的默认 target 会先认 package.json dev script 里的 `-p/--port/PORT=`(非 3000 才生效)。
 
 ## 健康探测与代理卫生

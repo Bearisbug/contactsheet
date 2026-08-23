@@ -7,7 +7,7 @@ import type { McpServices } from "../mcp/index.js"
 import { createMcpHandler } from "../mcp/index.js"
 import { screenshot } from "../shot/index.js"
 import { errText, handleApi, pushToken, sendText } from "./api.js"
-import { findUiFile, mimeOf } from "./assets.js"
+import { findUiFile, mimeOf, pkgVersion } from "./assets.js"
 import { createProxyLog } from "./proxy-log.js"
 import { startHealthMonitor } from "./health.js"
 import { cyan, dim, link, warn } from "../term.js"
@@ -199,25 +199,48 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string)
 }
 
-/** 占着配置端口的是不是"本项目的另一个 contactsheet"?是就没必要再起一个 */
-async function occupiedBySameProject(cfg: CsConfig, port: number): Promise<boolean> {
+/** 占着配置端口的是不是"本项目的另一个 contactsheet"?是的话拿到它的版本。
+ *  重试两轮、超时放宽:旧实例正忙(泄漏/高负载)时 800ms 一枪打空会把"同项目"误判成
+ *  "陌生进程" —— 这个误判上一次让升级静默失效了 */
+async function probeSameProject(
+  cfg: CsConfig,
+  port: number
+): Promise<{ version?: string } | null> {
+  for (let i = 0; i < 2; i++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/__cs/api/state`, {
+        signal: AbortSignal.timeout(2500),
+      })
+      if (!r.ok) return null
+      const data = (await r.json()) as { projectRoot?: string; version?: string }
+      return data?.projectRoot === cfg.projectRoot ? { version: data.version } : null
+    } catch {
+      /* 第二轮再试 */
+    }
+  }
+  return null
+}
+
+/** 占用端口的进程号,尽力而为(报错信息里能直接 kill 比"自己去 lsof"友好一个量级) */
+function occupierPid(port: number): string | null {
   try {
-    const ctl = AbortSignal.timeout(800)
-    const r = await fetch(`http://127.0.0.1:${port}/__cs/api/state`, { signal: ctl })
-    if (!r.ok) return false
-    const data = (await r.json()) as { projectRoot?: string }
-    return data?.projectRoot === cfg.projectRoot
+    const { execSync } = require("node:child_process") as typeof import("node:child_process")
+    const out = execSync(`lsof -t -nP -iTCP:${port} -sTCP:LISTEN`, { timeout: 3000 })
+      .toString()
+      .trim()
+    return out.split("\n")[0] || null
   } catch {
-    return false
+    return null
   }
 }
 
 /**
- * 端口被占时的策略:
- * - 占用者是本项目的另一个 contactsheet → 打印地址直接退出(用户多半是忘了已经起过);
- * - 用户显式 --port → 不猜,报错说清楚;
- * - 其余(默认/config 端口被别的进程占)→ 往上顺延找空位,最多 20 个,并醒目警告:
- *   换端口 = 换源,画布的本机记忆(画板位置/折叠/底色)按源隔离,MCP 与 hook 也仍指向旧端口。
+ * 端口被占时的策略(实测事故后从"顺延"改成"硬失败"):
+ * - 本项目的另一个 contactsheet,版本相同 → 打印地址直接退出(忘了已经起过);
+ * - 本项目但**版本不同** → 退出码 1,提示先 kill 旧的 —— 静默复用旧实例 = 升级静默失效;
+ * - 其他进程占着 → **硬失败**,带上占用者 PID。不再顺延:config/.mcp.json/hook 全都指向
+ *   这个端口,顺延后浏览器里看着一切正常,但 agent 侧接线全部指着别的进程,
+ *   而且任何一方都不会收到错误 —— 这次的后果不是"换了个端口",是"升级静默地没生效"。
  */
 async function listenWithFallback(
   server: http.Server,
@@ -266,26 +289,26 @@ async function listenWithFallback(
 
   if (await tryListen(cfg.port)) return cfg.port
 
-  if (await occupiedBySameProject(cfg, cfg.port)) {
+  const running = await probeSameProject(cfg, cfg.port)
+  if (running) {
+    if (running.version && running.version !== pkgVersion()) {
+      const pid = occupierPid(cfg.port)
+      console.error(
+        warn(`本项目已有一个 contactsheet 在 ${cfg.port} 上,但它是 v${running.version},当前是 v${pkgVersion()}。`) +
+          `\n  旧实例不会自动升级 —— 先停掉它再起:kill ${pid ?? "<lsof -t -iTCP:" + cfg.port + ">"}`
+      )
+      process.exit(1)
+    }
     console.log(
       `${cyan("●")} 本项目已经有一个 contactsheet 在跑了,直接用它:${link(`http://localhost:${cfg.port}/__cs`)}`
     )
     process.exit(0)
   }
-  if (cfg.portExplicit) {
-    throw new Error(
-      `端口 ${cfg.port} 被其他进程占用。换一个 --port,或找出占用者:lsof -nP -iTCP:${cfg.port} -sTCP:LISTEN`
-    )
-  }
-  for (let p = cfg.port + 1; p <= cfg.port + 20; p++) {
-    if (await tryListen(p)) {
-      console.warn(
-        warn(`端口 ${cfg.port} 被占,已顺延到 ${p} → `) + link(`http://localhost:${p}/__cs`) + "\n" +
-          dim(`   注意:换端口 = 换浏览器源。画板位置/折叠/底色这些本机记忆按源隔离,这个端口下是全新的;\n`) +
-          dim(`   .mcp.json 与 hook 仍指向 ${cfg.port}。想要稳定,请释放 ${cfg.port},或改 config 的 port 后重跑 npx contactsheet init。`)
-      )
-      return p
-    }
-  }
-  throw new Error(`从 ${cfg.port} 往上连试 20 个端口都被占,用 --port 指定一个空闲端口`)
+  const pid = occupierPid(cfg.port)
+  throw new Error(
+    `端口 ${cfg.port} 被其他进程占用${pid ? `(PID ${pid})` : ""}。` +
+      `.mcp.json/hook/config 都指向 ${cfg.port},换端口它们会全部失联,所以不自动顺延 ——\n` +
+      `  释放它:kill ${pid ?? `$(lsof -t -nP -iTCP:${cfg.port} -sTCP:LISTEN)`}\n` +
+      `  或换端口:改 contactsheet.config.json 的 port 后重跑 npx contactsheet init(MCP/hook 会跟着换)`
+  )
 }

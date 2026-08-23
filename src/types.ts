@@ -11,8 +11,6 @@ export interface CsConfig {
   target: string
   /** 外壳端口,默认 5199 */
   port: number
-  /** port 来自显式 --port(而不是 config/默认值):被占时不自动顺延,直接报错 */
-  portExplicit?: boolean
   /** 监听地址,默认 127.0.0.1(仅本机)。设成 0.0.0.0 会让同网络可达,无鉴权,慎用 */
   host?: string
   /** app 目录相对路径:"app" 或 "src/app" */
