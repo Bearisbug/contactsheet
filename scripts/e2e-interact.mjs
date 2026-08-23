@@ -50,6 +50,14 @@ try {
   await delay(4000) // 画板挂载 + 测高
 
   // 用 registry 定位 Button 文件的「默认」画板(多个文件都有「默认」export,按 id 找才稳)
+  // 自愈:之前中途崩掉的运行会留下孤儿批注,pin 定位会抓错对象
+  const stale = await (await fetch(`${CS}/__cs/api/annotations`)).json()
+  for (const a of stale) {
+    if ((a.text ?? "").includes("e2e-interact") || (a.text ?? "").includes("撑出滚动")) {
+      await fetch(`${CS}/__cs/api/annotations/${a.id}`, { method: "DELETE" })
+    }
+  }
+
   const reg = await (await fetch(`${CS}/__cs/registry`)).json()
   const btnEntry = reg.find((e) => e.exportName === "默认" && e.file.includes("Button"))
   const board = page.locator(`.cs-board[data-id="${btnEntry?.id}"]`)
@@ -188,10 +196,62 @@ try {
   } else {
     ok("点非激活板有提示", false, "危险板不在视口")
   }
-  await fetch(`${CS}/__cs/api/annotations/${tmpAnn.id}`, { method: "DELETE" })
   await page.keyboard.press("Escape")
   await delay(200)
   ok("Esc 回浏览模式", (await page.evaluate(() => document.body.dataset.mode)) === "browse")
+
+  // 8c. 参考图可从批注移除(气泡里的 ✕ → PATCH)。
+  // 板位会随重排轮次漂移,pin 可能在视口外 —— 先聚焦画板,再点 pin 选中让气泡常驻(不靠 hover)
+  await fetch(`${CS}/__cs/api/annotations/${tmpAnn.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ refs: ["design/.canvas/refs/e2e-fake.png"], text: Array(18).fill("这是一行足够长的批注文字,用来撑出滚动。").join("\n") }),
+  })
+  await delay(600) // SSE 重画 pin
+  const fb2 = await board.locator(".cs-frame").boundingBox()
+  await page.mouse.move(fb2.x + 20, fb2.y + 20)
+  await delay(200)
+  await page.keyboard.press("2") // 聚焦当前画板
+  await delay(1500)
+  const pinBox = await page.locator(`.cs-pin[data-ann-id="${tmpAnn.id}"]`).boundingBox()
+  await page.mouse.click(pinBox.x + 5, pinBox.y + 5) // 选中:气泡常驻
+  await delay(400)
+  const rmBox = await page.locator(".cs-pin-bubble .cs-ref-rm").first().boundingBox()
+  if (rmBox) {
+    await page.mouse.move(rmBox.x + 9, rmBox.y + 9)
+    await delay(150)
+    await page.mouse.click(rmBox.x + 9, rmBox.y + 9)
+    await delay(500)
+    const after = await (await fetch(`${CS}/__cs/api/annotations`)).json()
+    const cur = after.find((a) => a.id === tmpAnn.id)
+    ok("参考图可移除(PATCH 落库)", (cur?.refs ?? []).length === 0, `refs=${JSON.stringify(cur?.refs)}`)
+  } else {
+    ok("参考图可移除(PATCH 落库)", false, "气泡里找不到 ✕")
+  }
+
+  // 8d. 气泡编辑框里滚轮滚的是文本,不是画布(点 pin 选中 → Enter 进编辑,真实用户路径)
+  const pinBox2 = await page.locator(`.cs-pin[data-ann-id="${tmpAnn.id}"]`).boundingBox()
+  await page.mouse.click(pinBox2.x + 5, pinBox2.y + 5)
+  await delay(300)
+  await page.keyboard.press("Enter")
+  await delay(400)
+  const taBox = await page.locator(".cs-pin-edit").boundingBox()
+  const worldBefore = await page.evaluate(() => document.querySelector("#cs-world").style.transform)
+  await page.mouse.move(taBox.x + taBox.width / 2, taBox.y + taBox.height / 2)
+  await page.mouse.wheel(0, 240)
+  await delay(300)
+  const worldAfter = await page.evaluate(() => document.querySelector("#cs-world").style.transform)
+  const taScroll = await page.evaluate(() => document.querySelector(".cs-pin-edit").scrollTop)
+  ok("编辑框滚轮不动画布", worldBefore === worldAfter)
+  ok("编辑框内容真的滚了", taScroll > 0, `scrollTop=${taScroll}`)
+  // 状态归位:退出编辑 → 取消选中(否则后面的 Enter 被编辑分支截走)→ 缩放回 100%(200% 已到顶,Ctrl+wheel 测不出变化)
+  await page.keyboard.press("Escape")
+  await delay(300)
+  await page.keyboard.press("Escape")
+  await delay(200)
+  await page.keyboard.press("0")
+  await delay(1000)
+
+  await fetch(`${CS}/__cs/api/annotations/${tmpAnn.id}`, { method: "DELETE" })
 
   // 5. HMR 链:改 artboard 文案 → iframe 热更新且不整页刷
   await page.evaluate((id) => {

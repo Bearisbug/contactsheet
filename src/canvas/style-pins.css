@@ -48,6 +48,7 @@
 .cs-ref-strip:empty { display: none; }   /* 没图就当它不存在,别留一条空隙 */
 
 .cs-ref-thumb {
+  position: relative;   /* 删除钮的锚 */
   width: 56px;
   padding: 2px;
   border: 1px solid var(--cs-line-2);
@@ -56,6 +57,26 @@
   cursor: zoom-in;
 }
 .cs-ref-thumb:hover { border-color: var(--cs-accent); }
+/* 删除钮:悬停才现身,压在缩略图右上角。命中区 18px,比字形大一圈 */
+.cs-ref-rm {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--cs-line-2);
+  border-radius: var(--cs-r-full);
+  background: var(--cs-s1);
+  color: var(--cs-fg-2);
+  font: var(--cs-fs-micro)/1 var(--cs-ff-sans);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--cs-dur-1) var(--cs-ease), color var(--cs-dur-1) var(--cs-ease);
+}
+.cs-ref-thumb:hover .cs-ref-rm,
+.cs-ref-rm:focus-visible { opacity: 1; }
+.cs-ref-rm:hover { color: var(--cs-danger); border-color: var(--cs-danger); }
 /* 固定比例 + 等比裁切:贴进来的截图长宽不可控,只给宽高会把竖图压扁;
    槽位尺寸先定死,图到位时也不会把气泡撑得跳一下 */
 .cs-ref-thumb img {
@@ -101,4 +122,37 @@
   letter-spacing: var(--cs-track-wide);
   text-align: center;
   cursor: help;
+}
+
+/* ============================================================
+   气泡编辑框的滚动卫生(RESP-015:滚动条定制;滚轮事件由 view.ts 放行)
+   ============================================================ */
+.cs-pin-edit {
+  resize: none;                    /* UA 的拉伸角在暗色气泡上是块白斑,气泡宽度也不该被拉走 */
+  overscroll-behavior: contain;    /* 滚到头别把手势漏给画布 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--cs-s4) transparent;
+}
+.cs-pin-edit::-webkit-scrollbar { width: 8px; }
+.cs-pin-edit::-webkit-scrollbar-thumb {
+  border-radius: var(--cs-r-full);
+  background: var(--cs-s4);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.cs-pin-edit::-webkit-scrollbar-track { background: transparent; }
+/* 气泡正文长文同样能滚(展示态) */
+.cs-pin-text {
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cs-s4) transparent;
+}
+.cs-pin-text::-webkit-scrollbar { width: 8px; }
+.cs-pin-text::-webkit-scrollbar-thumb {
+  border-radius: var(--cs-r-full);
+  background: var(--cs-s4);
+  border: 2px solid transparent;
+  background-clip: content-box;
 }

@@ -83,8 +83,12 @@ export function refSrc(path: string): string {
   return localSrc.get(path) ?? refUrl(path)
 }
 
-/** 参考图缩略图:点击开大图。取不到图时退化成文件名 chip(不留破图标) */
-export function refThumb(path: string): HTMLElement {
+/** 参考图缩略图:占位符样式(「图片 n」+ 小缩略图),点开大图,可带删除钮。
+ *  取不到图时退化成文件名 chip(不留破图标) */
+export function refThumb(
+  path: string,
+  opts?: { index?: number; onRemove?: () => void }
+): HTMLElement {
   const card = h("div", "cs-ref-thumb")
   card.title = path
   const img = h("img")
@@ -97,11 +101,21 @@ export function refThumb(path: string): HTMLElement {
   img.src = refSrc(path)
   // 已解码完成的图(dataURL/缓存)不会再补发 error 事件,同步补测一次
   if (img.complete && img.naturalWidth === 0) broken()
-  card.append(img, h("span", "cs-ref-name", fileOf(path)))
+  card.append(img, h("span", "cs-ref-name", opts?.index ? `图片 ${opts.index}` : fileOf(path)))
   card.addEventListener("click", (e) => {
     e.stopPropagation() // 别顺带把 pin 选中/把气泡当成点了别处
     openLightbox(refSrc(path), path)
   })
+  if (opts?.onRemove) {
+    const rm = h("button", "cs-ref-rm", "✕")
+    rm.title = "从这条批注移除(文件保留在 refs/)"
+    rm.setAttribute("aria-label", rm.title)
+    rm.addEventListener("click", (e) => {
+      e.stopPropagation()
+      opts.onRemove?.()
+    })
+    card.appendChild(rm)
+  }
   return card
 }
 

@@ -196,6 +196,9 @@ export function initView(): void {
   viewport.addEventListener(
     "wheel",
     (e: WheelEvent) => {
+      // 气泡/输入框里的滚轮是要滚它自己的内容:别 preventDefault,更别拿去平移画布。
+      // (此前在批注编辑框里滚动,滚的是整面墙 —— 输入长文时完全没法用)
+      if ((e.target as Element | null)?.closest?.(".cs-pin-bubble, .cs-pin-input")) return
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
         // Ctrl+wheel / 触控板捏合(浏览器把捏合报成 ctrlKey 的 wheel)

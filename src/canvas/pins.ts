@@ -137,10 +137,12 @@ function attachHoverGrace(pin: HTMLElement): void {
   })
 }
 
-/** 一条批注挂的参考图:横排缩略图,点开大图 */
-function refStrip(paths: string[]): HTMLElement {
+/** 一条批注挂的参考图:「图片 n」占位符 + 缩略图预览,点开大图,✕ 移除 */
+function refStrip(paths: string[], onRemove?: (path: string) => void): HTMLElement {
   const strip = h("div", "cs-ref-strip")
-  for (const p of paths) strip.appendChild(refThumb(p))
+  paths.forEach((p, i) =>
+    strip.appendChild(refThumb(p, { index: i + 1, onRemove: onRemove ? () => onRemove(p) : undefined }))
+  )
   return strip
 }
 
@@ -148,7 +150,14 @@ function bubble(ann: Annotation): HTMLElement {
   const box = h("div", "cs-pin-bubble")
   const textEl = h("div", "cs-pin-text", ann.text)
   box.appendChild(textEl)
-  if (ann.refs?.length) box.appendChild(refStrip(ann.refs))
+  if (ann.refs?.length) {
+    box.appendChild(
+      refStrip(ann.refs, (path) => {
+        const next = (ann.refs ?? []).filter((r) => r !== path)
+        void transition(ann.id, { refs: next }, "参考图已移除(文件保留在 refs/ 里)")
+      })
+    )
+  }
   const meta = h("div", "cs-pin-meta")
   meta.appendChild(h("span", undefined, ann.status === "open" ? "open" : "待核验"))
 
@@ -200,17 +209,26 @@ function startEdit(box: HTMLElement, textEl: HTMLElement, ann: Annotation): void
   // 编辑态里粘贴的图挂到这条批注。先只暂存,和文字一起在「保存」时 PATCH ——
   // 立刻 PATCH 会经 SSE 触发 renderPins,把用户正在打的字连输入框一起冲掉。
   const refs = [...(ann.refs ?? [])]
-  // 已有图的气泡里已经有这条 strip,没图的现造一条(新造的还没进 DOM,插到按钮行前面)
-  const strip = box.querySelector<HTMLElement>(".cs-ref-strip") ?? refStrip([])
-  if (!strip.isConnected) box.insertBefore(strip, box.querySelector(".cs-pin-meta"))
+  // 编辑态的 strip 整个重建:增删都只动暂存数组,「保存」时一并 PATCH
+  let strip = box.querySelector<HTMLElement>(".cs-ref-strip")
+  const redrawStrip = (): void => {
+    const next = refStrip(refs, (path) => {
+      refs.splice(refs.indexOf(path), 1)
+      redrawStrip()
+    })
+    if (strip?.isConnected) strip.replaceWith(next)
+    else box.insertBefore(next, box.querySelector(".cs-pin-meta"))
+    strip = next
+  }
+  redrawStrip()
   setPasteTarget({
     el: box,
     onFile: (file) => {
       void uploadRef(file)
         .then((path) => {
           refs.push(path)
-          strip.appendChild(refThumb(path))
-          toast(`参考图已上传:${path} —— 点「保存」后才挂到这条批注`, "ok")
+          redrawStrip()
+          toast(`参考图已上传 —— 点「保存」后才挂到这条批注`, "ok")
         })
         .catch((err) => toast(`参考图上传失败:${String(err)}`, "error"))
     },
@@ -234,7 +252,7 @@ function startEdit(box: HTMLElement, textEl: HTMLElement, ann: Annotation): void
     e.stopPropagation()
     const text = ta.value.trim()
     const textChanged = !!text && text !== ann.text
-    const refsChanged = refs.length !== (ann.refs?.length ?? 0)
+    const refsChanged = JSON.stringify(refs) !== JSON.stringify(ann.refs ?? [])
     if (!textChanged && !refsChanged) return renderPins()
     const patch: Partial<Annotation> = {}
     if (textChanged) patch.text = text
