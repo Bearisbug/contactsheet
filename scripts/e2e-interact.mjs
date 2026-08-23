@@ -37,9 +37,10 @@ const bOrig = fs.readFileSync(bFile, "utf8")
 let browser = null
 
 try {
-  run("pnpm", ["dev"], FIXTURE)
-  await waitHttp("http://localhost:3000/")
-  run("node", [path.join(ROOT, "dist/cli.js"), "--port", "5642"], FIXTURE)
+  // fixture dev 也走专用端口:3000 随时可能被用户别的项目占着,waitHttp 会等到别人的 server
+  run("pnpm", ["dev", "--port", "5644"], FIXTURE)
+  await waitHttp("http://localhost:5644/")
+  run("node", [path.join(ROOT, "dist/cli.js"), "--port", "5642", "--target", "http://localhost:5644"], FIXTURE)
   await waitHttp(`${CS}/__cs/api/state`)
 
   const { chromium } = await import("playwright-core")

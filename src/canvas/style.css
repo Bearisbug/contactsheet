@@ -1187,3 +1187,34 @@ body:not([data-sidebar="off"]) #cs-hud { left: calc(var(--cs-sb-w) + 16px); }
   box-shadow: 0 0 0 3px var(--cs-accent), 0 0 0 6px var(--cs-accent-32);
   z-index: 4;
 }
+
+/* ---------- dev server 僵死横幅(全局,盖在一切之上但不拦事件之外的区域) ---------- */
+.cs-health {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--cs-z-overlay);
+  display: flex;
+  align-items: baseline;
+  gap: var(--cs-sp-4);
+  max-width: min(720px, 86vw);
+  padding: var(--cs-sp-4) var(--cs-sp-6);
+  border: 1px solid var(--cs-danger);
+  border-radius: var(--cs-r-3);
+  background: color-mix(in srgb, var(--cs-danger) 12%, var(--cs-s1));
+  color: var(--cs-fg);
+  font: var(--cs-fs-sm)/1.5 var(--cs-ff-sans);
+  box-shadow: var(--cs-e3);
+  /* 入场:@starting-style 由 transition 接住,无 JS 时序(MOTION-013);进入用 ease-out(MOTION-006) */
+  transition: opacity var(--cs-dur-3) var(--cs-ease-out), translate var(--cs-dur-3) var(--cs-ease-out);
+}
+@starting-style {
+  .cs-health { opacity: 0; translate: 0 -8px; }
+}
+.cs-health b { color: var(--cs-danger); font-weight: var(--cs-fw-bold); white-space: nowrap; }
+.cs-health span { color: var(--cs-fg-2); }
+@media (prefers-reduced-motion: reduce) {
+  .cs-health { transition: opacity var(--cs-dur-3) var(--cs-ease-out); }
+  @starting-style { .cs-health { translate: none; } }
+}

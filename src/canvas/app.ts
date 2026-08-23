@@ -13,6 +13,7 @@ import { state } from "./state.js"
 import { initView, onViewChange, restoreView } from "./view.js"
 import { initSidebar, syncActive } from "./sidebar.js"
 import { initWall, mountVisible, remeasureAll, syncEntries } from "./wall.js"
+import { hideUnhealthy, setLastOk, showUnhealthy } from "./health-banner.js"
 
 function showBootError(err: unknown): void {
   const boot = qs("#cs-boot")
@@ -134,7 +135,31 @@ async function boot(): Promise<void> {
   showTarget()
   restoreView() // info 就位后按项目键恢复上次的位置与缩放
 
-  // 注册表失败不终止启动:错误卡 + 自动重试,SSE 照常连 —— 画板文件修好后墙自动复活
+  // 健康快照要抢在拉注册表**之前**:目标僵死时注册表请求会被吊死,横幅不能陪它一起等
+  try {
+    const hres = await fetch("/__cs/api/health")
+    const hstate = (await hres.json()) as { ok: boolean; detail?: string; lastOkAt?: number }
+    setLastOk(hstate.lastOkAt)
+    if (!hstate.ok) showUnhealthy(hstate.detail)
+  } catch {
+    /* 外壳自己都挂了的话,fetchState 的错误卡已经在说话 */
+  }
+
+  // SSE 要抢在拉注册表之前连上:僵死期注册表请求会吊到超时,健康恢复事件不能陪它等
+  connectEvents({
+    registry: onRegistryEvent,
+    annotations: onAnnotations,
+    health: (ok, detail) => {
+      if (ok) {
+        setLastOk(Date.now())
+        hideUnhealthy()
+      } else {
+        showUnhealthy(detail)
+      }
+    },
+  })
+
+  // 注册表失败不终止启动:错误卡 + 自动重试 —— 画板文件修好后墙自动复活
   await tryLoadRegistry()
 
   try {
@@ -143,11 +168,6 @@ async function boot(): Promise<void> {
   } catch {
     /* 批注拉不到不算致命,墙照常用 */
   }
-
-  connectEvents({
-    registry: onRegistryEvent,
-    annotations: onAnnotations,
-  })
 }
 
 void boot()

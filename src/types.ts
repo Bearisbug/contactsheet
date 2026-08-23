@@ -83,6 +83,8 @@ export interface Annotation {
 export type CsEvent =
   | { type: "registry"; entries: RegistryEntry[] }
   | { type: "annotations"; annotations: Annotation[] }
+  // 目标 dev server 的健康状态(僵死指纹:静态 200/SSR 挂):画布用全局横幅说清归因
+  | { type: "health"; ok: boolean; detail?: string }
 
 /** 截图请求/结果 */
 export interface ShotRequest {

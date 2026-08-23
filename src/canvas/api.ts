@@ -20,7 +20,9 @@ export function fetchState(): Promise<StateInfo> {
 
 /** registry 由注入到 Next 里的路由提供(外壳直接代理放行) */
 export function fetchRegistry(): Promise<RegistryEntry[]> {
-  return req<RegistryEntry[]>(`${BASE}/registry`)
+  // 必须有超时:目标僵死时这个请求会被吊死,而 boot 串行 await 它 —— 没超时的话
+  // 排在后面的一切(SSE/健康恢复)都陪葬。超时走既有的错误卡 + 3 秒重试,冷编译慢也能等到
+  return req<RegistryEntry[]>(`${BASE}/registry`, { signal: AbortSignal.timeout(15000) })
 }
 
 export function fetchAnnotations(): Promise<Annotation[]> {
@@ -104,6 +106,7 @@ export function boardUrl(entry: RegistryEntry, args: Record<string, unknown> | n
 export function connectEvents(on: {
   registry(entries: RegistryEntry[]): void
   annotations(list: Annotation[]): void
+  health(ok: boolean, detail?: string): void
 }): EventSource {
   const es = new EventSource(`${BASE}/events`)
   const dispatch = (raw: unknown) => {
@@ -116,9 +119,11 @@ export function connectEvents(on: {
     }
     if (ev.type === "registry") on.registry(ev.entries ?? [])
     else if (ev.type === "annotations") on.annotations(ev.annotations ?? [])
+    else if (ev.type === "health") on.health(ev.ok, ev.detail)
   }
   es.addEventListener("registry", (e) => dispatch((e as MessageEvent<string>).data))
   es.addEventListener("annotations", (e) => dispatch((e as MessageEvent<string>).data))
+  es.addEventListener("health", (e) => dispatch((e as MessageEvent<string>).data))
   // 没带 event 名的消息也认(data 里有 type)
   es.onmessage = (e) => dispatch(e.data)
   return es

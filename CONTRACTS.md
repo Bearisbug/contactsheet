@@ -170,6 +170,13 @@ export function runInit(cwd: string, flags: Partial<CsConfig>): Promise<void>
   显式 `--port`(`cfg.portExplicit`)→ 报错不猜;其余 → 顺延 ≤20 个并警告(换端口=换源,本机记忆隔离,MCP/hook 仍指旧端口)。
 - init 的默认 target 会先认 package.json dev script 里的 `-p/--port/PORT=`(非 3000 才生效)。
 
+## 健康探测与代理卫生
+
+- `startHealthMonitor`(server/health.ts):每 20s(`CS_HEALTH_INTERVAL_MS`)探 `${target}/__cs/registry`(**必须探 SSR 路径**,僵死指纹下静态资源是假阴性),超时 10s(`CS_HEALTH_TIMEOUT_MS`),**连挂 2 次**才广播 `{type:"health"}`(单次抖动/冷编译不拉横幅);**从未成功过不判死刑**(冷启动归错误卡管)。404 算活着(clean 过注入文件)。
+- 画布横幅(health-banner.ts):全局一条说清归因,显示绝对时刻不做滴答(COMP-009);**健康快照必须在拉注册表之前取**,SSE 也要先连 —— 僵死期注册表请求会吊死,谁排它后面谁陪葬。fetchRegistry 带 15s 超时,超时走错误卡 3s 重试。
+- **代理必须把客户端中断传给上游**(proxyReq + res close 且未 writableEnded → destroy):不传的话每次中断泄一个 fd(实测 300 次泄 300 个,永不回收),且对 dev server 是永远 in-flight 的渲染请求,僵死期的重试洪水会把它压得更死。正常完成的请求不动(别误杀 keep-alive 池)。
+- **e2e 端口表**(全部专用,严禁 3000/5199:随时可能被用户的项目占着,waitHttp 会等到别人的 server):e2e.mjs 外壳 5641/dev 5643;e2e-interact 外壳 5642/dev 5644;shot.mjs dev 5645。
+
 ## Agent A 补充细节
 
 - 静态资产:优先 `dist/canvas/`(与 cli.js 同发布);若不存在(开发期),回落读 `src/canvas/`,其中 app.js 开发期由 `node build.mjs --watch` 产出到 dist——即回落顺序 dist → src,`index.html`/`style.css` 两处任一。

@@ -41,11 +41,12 @@ function run(cmd, args, cwd) {
 
 try {
   // 1. 起 fixture 的 next dev
-  run("pnpm", ["dev"], FIXTURE)
-  ok("next dev 就绪", await waitHttp("http://localhost:3000/"))
+  // fixture dev 也走专用端口:3000 随时可能被用户别的项目占着,waitHttp 会等到别人的 server
+  run("pnpm", ["dev", "--port", "5643"], FIXTURE)
+  ok("next dev 就绪", await waitHttp("http://localhost:5643/"))
 
   // 2. 起 contactsheet(在 fixture 目录下,像真实用户那样)
-  run("node", [path.join(ROOT, "dist/cli.js"), "--port", "5641"], FIXTURE)
+  run("node", [path.join(ROOT, "dist/cli.js"), "--port", "5641", "--target", "http://localhost:5643"], FIXTURE)
   ok("contactsheet 就绪", await waitHttp(`${CS}/__cs/api/state`))
 
   // 3. 注入产物落盘了吗

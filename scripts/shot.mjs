@@ -33,9 +33,10 @@ async function waitHttp(url, ms = 90000) {
 
 let browser
 try {
-  run("pnpm", ["dev"], FIXTURE)
-  if (!(await waitHttp("http://localhost:3000/"))) throw new Error("next dev 起不来")
-  run("node", [path.join(ROOT, "dist/cli.js")], FIXTURE)
+  // fixture dev 也走专用端口:3000 随时可能被用户别的项目占着,waitHttp 会等到别人的 server
+  run("pnpm", ["dev", "--port", "5645"], FIXTURE)
+  if (!(await waitHttp("http://localhost:5645/"))) throw new Error("next dev 起不来")
+  run("node", [path.join(ROOT, "dist/cli.js"), "--target", "http://localhost:5645"], FIXTURE)
   if (!(await waitHttp(`${CS}/__cs/api/state`))) throw new Error("contactsheet 起不来")
 
   browser = await chromium.launch({ channel: "msedge", headless: true })

@@ -5,6 +5,7 @@ import type { Annotation, CsConfig, Selection, ShotRequest, StateInfo } from "..
 import { screenshot } from "../shot/index.js"
 import { mimeOf, pkgVersion } from "./assets.js"
 import { pushToSession } from "./push.js"
+import { currentHealth } from "./health.js"
 import { broadcast } from "./sse.js"
 import * as store from "./store.js"
 
@@ -88,6 +89,11 @@ export async function handleApi(
     if (!body?.dataBase64) return sendText(res, 400, "缺少 dataBase64")
     const rel = await store.saveRef(cfg, body.name || "ref.png", body.dataBase64)
     return sendJson(res, 200, { path: rel })
+  }
+
+  if (pathname === "/__cs/api/health") {
+    if (method !== "GET") return sendText(res, 405, "method not allowed")
+    return sendJson(res, 200, currentHealth())
   }
 
   if (pathname === "/__cs/api/context") {

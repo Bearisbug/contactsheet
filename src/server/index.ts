@@ -9,6 +9,7 @@ import { screenshot } from "../shot/index.js"
 import { errText, handleApi, pushToken, sendText } from "./api.js"
 import { findUiFile, mimeOf } from "./assets.js"
 import { createProxyLog } from "./proxy-log.js"
+import { startHealthMonitor } from "./health.js"
 import { cyan, dim, link, warn } from "../term.js"
 import * as sse from "./sse.js"
 import * as store from "./store.js"
@@ -35,6 +36,16 @@ export async function startServer(cfg: CsConfig): Promise<{ port: number; close(
       res.destroy()
     }
   })
+  // 客户端半路放弃时,上游连接必须跟着拆。不拆的话每次中断都在外壳里留一个吊死 fd
+  // (实测 300 次中断泄漏 300 个 fd,永不回收),而且对 next dev 那是一个永远"渲染中"的
+  // in-flight 请求 —— 僵死期的 HMR 重试洪水会把这种请求堆成山,反过来把 dev server 压得更死。
+  // 判据:res 关闭但没写完 = 客户端中断;正常完成的请求不动它(别误杀 keep-alive 连接池)。
+  proxy.on("proxyReq", (proxyReq, _req, res) => {
+    res.on("close", () => {
+      if (!res.writableEnded) proxyReq.destroy()
+    })
+  })
+
   // 目标有回包就算活过来了(http 响应 / ws 握手),用来打"已恢复"那一行
   proxy.on("proxyRes", () => proxyLog.alive())
   proxy.on("open", () => proxyLog.alive())
@@ -84,9 +95,12 @@ export async function startServer(cfg: CsConfig): Promise<{ port: number; close(
     )
   }
 
+  const health = startHealthMonitor(cfg, sse.broadcast)
+
   return {
     port,
     async close() {
+      health.close()
       sse.closeAll()
       proxyLog.close()
       proxy.close()
