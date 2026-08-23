@@ -143,6 +143,8 @@ export function runInit(cwd: string, flags: Partial<CsConfig>): Promise<void>
 - `.cs-frame` 不加圆角也不加阴影:带这两样,白底读起来是"又浮了一张卡片",而高亮框是直角矩形,形状对不上;边界只由那条 1px outline 表达。
 - 组件底色:iframe 画布恒不透明,所以必然有底。全局开关 `cs-bg-default:<projectRoot>`,两档 —— `blend`(默认,把 iframe 的 `html/body` 刷成运行时读到的 `--cs-bg`,同时 `.cs-frame` 去掉白底/描边/阴影;**两层必须一起去,只去一层白块还在**)、`real`(项目自己的背景)。单板可覆盖,键删除 = 跟随全局。**screen 画板不参与**(不注入、frame 仍白)。
 - 懒挂载:IntersectionObserver,视口外 1.5 屏内才挂 iframe,未挂时显示占位(灰底 + 名字)。
+- **screen 画板首次出现默认隐藏**(`cs-seen:<root>` 判定"首次";用户显隐选择永远优先,只有没见过的 id 才被默认藏)。**隐藏板绝不挂载**,三道闸:createBoard 出生即 `el.hidden`(IO 首帧回调抢在 applyPositions 前);IO 回调对隐藏板 continue 且**不 unobserve**(打开时 IO 会再报一次 intersecting);requestMount 入口兜底 return。默认藏了东西必须 toast 告知(用户加了 screens 一行,墙上没动静,要说清去了哪)。
+- CLI 输出统一走 src/term.ts(零依赖 ANSI):✓ 绿完成 / ⚠ 黄注意 / ✖ 红失败 / 青色链接 / dim 次要;尊重 NO_COLOR 与非 TTY(管道时纯文本)。cli.ts 顶部 `process.noDeprecation = true`(http-proxy 的 DEP0060 用户无法处置)。
 - 缩放/平移:世界容器 `transform: translate+scale`。平移=空白处拖拽或双指滚轮;缩放=Ctrl+wheel/捏合,以光标为锚点,范围 0.05–2。
 - 三模式:
   - **浏览**(默认,Esc 回来):每块画板上盖 overlay(`pointer-events:auto`),mousemove → `elementFromPoint` 高亮(在外壳层画描边框,不进 iframe 改 DOM);click → 生成 CSS selector(id > data-* > 标签+nth-of-type 链,≤5 层)→ POST `/__cs/api/selection` 并显示选中框。

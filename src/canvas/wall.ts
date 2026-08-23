@@ -48,6 +48,9 @@ export function initWall(): void {
         if (state.scale < MOUNT_MIN_SCALE) continue
         const id = (r.target as HTMLElement).dataset.id
         const board = id ? state.boards.get(id) : null
+        // 隐藏板不挂载:screen 默认收起就是为了省掉整页 iframe 的成本。
+        // 也不能 unobserve —— 用户从侧栏打开时(hidden 摘掉),IO 会再报一次 intersecting,那时再挂
+        if (board?.el.hidden) continue
         if (board) requestMount(board)
         io.unobserve(r.target)
       }
@@ -83,6 +86,7 @@ export function syncEntries(entries: RegistryEntry[]): void {
     heightWatchers.get(id)?.disconnect()
     heightWatchers.delete(id)
   }
+  const defaultHid = markSeenAndDefaultHide(entries)
   for (const [file, list] of byFile) {
     const ids = list.map((e) => e.id)
     // 位置稳定:已有 id 保持原顺序,新 id 追加到尾部
@@ -108,6 +112,8 @@ export function syncEntries(entries: RegistryEntry[]): void {
     applyPositions()
     if (n && !firstSync) toast(`新画板 ${n} 块 · 已放到墙底部`, "info")
   }
+  // 用户加了 screens 一行却发现墙上没动静 —— 必须说清它去了哪
+  if (defaultHid) toast("页面画板默认收起(整页 iframe 太重),在左侧「页面」分区按需打开", "info")
   if (state.boards.size) firstSync = false
   renderSidebar()
 }
@@ -182,6 +188,7 @@ function createBoard(entry: RegistryEntry): Board {
   }
   attachResizeHandles(board)
   attachBoardDrag(board)
+  el.hidden = isHidden(entry.id) // 出生即带显隐:IO 首帧回调抢在 applyPositions 前,晚了就白挂 iframe
   applySize(board)
   updateBoard(board, entry)
   io.observe(el)
@@ -302,6 +309,44 @@ function hasAnyPos(): boolean {
 
 function hiddenKey(): string {
   return `cs-hidden:${state.info?.projectRoot ?? "unknown"}`
+}
+
+// ---------- screen 画板默认隐藏 ----------
+// 一块 screen 画板 = 一个完整 app 实例的 iframe(React/provider/realtime 全套)。
+// 二十几块同时挂载会把 dev server 和浏览器一起拖垮(Synco 实测翻车)。
+// 所以 screen **首次出现时默认隐藏**,用户从侧栏按需打开;开/关的选择照常持久化。
+// "首次"用 seen 集合判定:见过的 id 不再动它的显隐 —— 用户的选择永远优先。
+
+function seenKey(): string {
+  return `cs-seen:${state.info?.projectRoot ?? "unknown"}`
+}
+
+/** 把新出现的 id 记入 seen;其中 kind=screen 的顺手加进 hidden。返回是否有 screen 被默认隐藏 */
+function markSeenAndDefaultHide(entries: RegistryEntry[]): boolean {
+  let seen: Set<string>
+  try {
+    seen = new Set(JSON.parse(localStorage.getItem(seenKey()) ?? "[]") as string[])
+  } catch {
+    seen = new Set()
+  }
+  const fresh = entries.filter((e) => !seen.has(e.id))
+  if (fresh.length === 0) return false
+  const hid = hiddenSet()
+  let hidSomething = false
+  for (const e of fresh) {
+    seen.add(e.id)
+    if (e.kind === "screen") {
+      hid.add(e.id)
+      hidSomething = true
+    }
+  }
+  try {
+    localStorage.setItem(seenKey(), JSON.stringify([...seen]))
+    if (hidSomething) localStorage.setItem(hiddenKey(), JSON.stringify([...hid]))
+  } catch {
+    /* 存不了就这一次生效 */
+  }
+  return hidSomething
 }
 
 function hiddenSet(): Set<string> {
@@ -600,6 +645,7 @@ export function mountVisible(): void {
 }
 
 function requestMount(board: Board): void {
+  if (board.el.hidden) return // 隐藏板永不挂载,打开时 IO/mountVisible 自然会再来
   if (board.iframe || mountQueue.includes(board)) return
   if (loadingCount >= MAX_LOADING) {
     mountQueue.push(board)

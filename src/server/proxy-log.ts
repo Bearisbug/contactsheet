@@ -3,6 +3,8 @@
 // 逐条打印就是一秒几十行,真正的错误全被冲走。这里把同类失败压成一条,并把"目标整个连不上"
 // 单独拎出来说一句人话。
 
+import { dim, green, red, yellow } from "../term.js"
+
 /** 同类失败的合并窗口 */
 const WINDOW_MS = 5000
 
@@ -33,8 +35,8 @@ export function createProxyLog(target: string): ProxyLog {
         }
         down = true
         console.error(
-          `[contactsheet] ⚠️  目标 ${target} 连不上了 —— 起 next dev 后会自动恢复(画布会自己重试)。` +
-            `期间的代理失败不再逐条打印。`
+          `${yellow("⚠")} ${yellow(`目标 ${target} 连不上了`)} —— 起 next dev 后会自动恢复(画布会自己重试)。` +
+            dim("期间的代理失败不再逐条打印。")
         )
         return
       }
@@ -45,12 +47,12 @@ export function createProxyLog(target: string): ProxyLog {
         win.extra++
         return
       }
-      console.error(`[contactsheet] 代理失败 ${pathOf(url)} ${code}`)
+      console.error(`${red("✖")} 代理失败 ${pathOf(url)} ${red(String(code))}`)
       const timer = setTimeout(() => {
         const extra = windows.get(key)?.extra ?? 0
         windows.delete(key)
         if (extra > 0) {
-          console.error(`[contactsheet] (过去 ${WINDOW_MS / 1000} 秒还有 ${extra} 次同类失败:${key})`)
+          console.error(dim(`  (过去 ${WINDOW_MS / 1000} 秒还有 ${extra} 次同类失败:${key})`))
         }
       }, WINDOW_MS)
       timer.unref()
@@ -62,7 +64,7 @@ export function createProxyLog(target: string): ProxyLog {
       down = false
       const n = silenced
       silenced = 0
-      console.log(`[contactsheet] 目标 ${target} 已恢复${n > 0 ? `(不可达期间压掉 ${n} 条代理失败)` : ""}`)
+      console.log(`${green("✓")} ${green(`目标 ${target} 已恢复`)}${n > 0 ? dim(`(不可达期间压掉 ${n} 条代理失败)`) : ""}`)
     },
 
     close() {

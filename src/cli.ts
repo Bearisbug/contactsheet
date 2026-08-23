@@ -1,4 +1,6 @@
 // contactsheet CLI:默认 up(注入 → 监听 → 起外壳),另有 init / clean
+// http-proxy 内部用 util._extend 会触发 DEP0060,用户对依赖的弃用警告无能为力,只会弄脏输出
+process.noDeprecation = true
 import { parseArgs } from "node:util"
 import { loadConfig } from "./config.js"
 import { ensureInjected, removeInjected } from "./inject/index.js"
@@ -6,6 +8,7 @@ import { runInit } from "./init/index.js"
 import { broadcast, startServer } from "./server/index.js"
 import { closeBrowser } from "./shot/index.js"
 import { startWatcher } from "./watch/index.js"
+import { bold, cyan, dim, link, ok, warn } from "./term.js"
 import type { CsConfig } from "./types.js"
 
 const HELP = `contactsheet —— 把 UI 的各种状态摊在一面可缩放的墙上
@@ -63,10 +66,12 @@ async function up(flags: Partial<CsConfig>): Promise<void> {
   const cfg = loadConfig(process.cwd(), flags)
 
   // 注入与文件监听归 Agent B;这两步失败只告警,外壳照常起(画布本身不依赖它们)
-  await tryStep("注入画板路由", () => ensureInjected(cfg))
+  const injected = await tryStep("注入画板路由", () => ensureInjected(cfg))
+  if (injected !== null) console.log(ok(dim("画板路由已注入")))
   const watcher = await tryStep("启动文件监听", () =>
     startWatcher(cfg, (entries) => broadcast({ type: "registry", entries }))
   )
+  if (watcher) console.log(ok(dim(`监听 ${cfg.designDir}/**/*.artboard.{tsx,ts}`)))
 
   const server = await startServer(cfg)
   banner(cfg, server.port)
@@ -75,7 +80,7 @@ async function up(flags: Partial<CsConfig>): Promise<void> {
   const shutdown = async (sig: string): Promise<void> => {
     if (closing) return
     closing = true
-    console.log(`\n[contactsheet] 收到 ${sig},正在退出…`)
+    console.log(dim(`\n[contactsheet] 收到 ${sig},正在退出…`))
     if (watcher) await quiet(() => watcher.close())
     await quiet(() => server.close())
     await quiet(() => closeBrowser())
@@ -90,7 +95,7 @@ async function tryStep<T>(label: string, fn: () => Promise<T>): Promise<T | null
   try {
     return await fn()
   } catch (err) {
-    console.warn(`[contactsheet] ${label}失败,已跳过:${err instanceof Error ? err.message : String(err)}`)
+    console.warn(warn(`${label}失败,已跳过:${err instanceof Error ? err.message : String(err)}`))
     return null
   }
 }
@@ -106,9 +111,9 @@ async function quiet(fn: () => Promise<unknown>): Promise<void> {
 
 function banner(cfg: CsConfig, port: number): void {
   console.log(`
-  contactsheet   http://localhost:${port}/__cs
-  代理目标       ${cfg.target}
-  画板目录       ${cfg.designDir}/   ·   app 目录 ${cfg.appDir}/
-  Ctrl-C 退出
+  ${bold(cyan("◆"))} ${bold("contactsheet")}   ${link(`http://localhost:${port}/__cs`)}
+  ${dim("代理目标")}       ${cfg.target}
+  ${dim("画板目录")}       ${cfg.designDir}/ ${dim("·")} app 目录 ${cfg.appDir}/
+  ${dim("Ctrl-C 退出")}
 `)
 }

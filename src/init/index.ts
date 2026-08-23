@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import type { CsConfig } from "../types.js"
+import { bold, cyan, dim, green, link, ok } from "../term.js"
 
 const DEFAULT_TARGET = "http://localhost:3000"
 const DEFAULT_PORT = 5199
@@ -26,9 +27,9 @@ export async function runInit(cwd: string, flags: Partial<CsConfig>): Promise<vo
   // b. 探测 appDir + 写配置
   const appDir = detectAppDir(root)
   const cfg = writeConfigFile(root, appDir, flags)
-  console.log(`contactsheet init —— ${root}`)
-  console.log(`  app 目录:${cfg.appDir}`)
-  console.log(`  配置:contactsheet.config.json(target ${cfg.target},port ${cfg.port},画板目录 ${cfg.designDir})`)
+  console.log(`${bold(cyan("◆"))} ${bold("contactsheet init")} ${dim("——")} ${root}`)
+  console.log(ok(`app 目录:${cfg.appDir}`))
+  console.log(ok(`配置:contactsheet.config.json(target ${cfg.target},port ${cfg.port},画板目录 ${cfg.designDir})`))
 
   // c. .gitignore 由注入器(contactsheet 运行时)负责,init 不碰
 
@@ -43,14 +44,14 @@ export async function runInit(cwd: string, flags: Partial<CsConfig>): Promise<vo
 
   // g. 下一步
   console.log("")
-  console.log("下一步:")
-  console.log("  1. 照常起你自己的 dev server(next dev),确认它在 " + cfg.target)
-  console.log("  2. 另开一个终端:npx contactsheet")
-  console.log(`  3. 打开 http://localhost:${cfg.port}/__cs`)
+  console.log(bold("下一步:"))
+  console.log(`  1. 照常起你自己的 dev server(next dev),确认它在 ${cyan(cfg.target)}`)
+  console.log(`  2. 另开一个终端:${cyan("npx contactsheet")}`)
+  console.log(`  3. 打开 ${link(`http://localhost:${cfg.port}/__cs`)}`)
   console.log("")
-  console.log("端口都可以换:dev server 不在 " + cfg.target + " 就 --target <url>,")
-  console.log(`  ${cfg.port} 被占就 --port <n>(或改 contactsheet.config.json 后重跑 init,MCP/hook 会跟着换)。`)
-  console.log(`  ${cfg.port} 被别的进程占着时,contactsheet 会自动顺延到下一个空闲端口并提示。`)
+  console.log(dim("端口都可以换:dev server 不在 ") + cfg.target + dim(" 就 --target <url>,"))
+  console.log(dim(`  ${cfg.port} 被占就 --port <n>(或改 contactsheet.config.json 后重跑 init,MCP/hook 会跟着换)。`))
+  console.log(dim(`  ${cfg.port} 被别的进程占着时,contactsheet 会自动顺延到下一个空闲端口并提示。`))
 }
 
 // ============================================================
@@ -162,7 +163,7 @@ function seedArtboards(root: string, designDir: string): void {
     created++
   }
 
-  console.log(`  画板:铺了 ${created} 块画板,跳过 ${skipped} 个已存在` + (unreadable ? `,${unreadable} 个文件没认出组件导出` : ""))
+  console.log(ok(`画板:铺了 ${green(String(created))} 块,跳过 ${skipped} 个已存在`) + (unreadable ? `,${unreadable} 个文件没认出组件导出` : ""))
 }
 
 /**

@@ -9,6 +9,7 @@ import { screenshot } from "../shot/index.js"
 import { errText, handleApi, pushToken, sendText } from "./api.js"
 import { findUiFile, mimeOf } from "./assets.js"
 import { createProxyLog } from "./proxy-log.js"
+import { cyan, dim, link, warn } from "../term.js"
 import * as sse from "./sse.js"
 import * as store from "./store.js"
 
@@ -71,8 +72,7 @@ export async function startServer(cfg: CsConfig): Promise<{ port: number; close(
   const port = await listenWithFallback(server, cfg, host)
   if (host !== "127.0.0.1" && host !== "localhost") {
     console.warn(
-      `[contactsheet] ⚠️  监听在 ${host}:${port} —— 画布无鉴权,同网络的任何人都能读你的批注、` +
-        `并向你的 Claude Code 会话推送消息。只在可信网络这么做。`
+      warn(`监听在 ${host}:${port} —— 画布无鉴权,同网络的任何人都能读你的批注、并向你的 Claude Code 会话推送消息。只在可信网络这么做。`)
     )
   }
 
@@ -212,7 +212,7 @@ async function listenWithFallback(server: http.Server, cfg: CsConfig, host: stri
 
   if (await occupiedBySameProject(cfg, cfg.port)) {
     console.log(
-      `[contactsheet] 本项目已经有一个 contactsheet 在跑了,直接用它:http://localhost:${cfg.port}/__cs`
+      `${cyan("●")} 本项目已经有一个 contactsheet 在跑了,直接用它:${link(`http://localhost:${cfg.port}/__cs`)}`
     )
     process.exit(0)
   }
@@ -224,9 +224,9 @@ async function listenWithFallback(server: http.Server, cfg: CsConfig, host: stri
   for (let p = cfg.port + 1; p <= cfg.port + 20; p++) {
     if (await tryListen(p)) {
       console.warn(
-        `[contactsheet] ⚠️  端口 ${cfg.port} 被占,已顺延到 ${p} → http://localhost:${p}/__cs\n` +
-          `   注意:换端口 = 换浏览器源。画板位置/折叠/底色这些本机记忆按源隔离,这个端口下是全新的;\n` +
-          `   .mcp.json 与 hook 仍指向 ${cfg.port}。想要稳定,请释放 ${cfg.port},或改 config 的 port 后重跑 npx contactsheet init。`
+        warn(`端口 ${cfg.port} 被占,已顺延到 ${p} → `) + link(`http://localhost:${p}/__cs`) + "\n" +
+          dim(`   注意:换端口 = 换浏览器源。画板位置/折叠/底色这些本机记忆按源隔离,这个端口下是全新的;\n`) +
+          dim(`   .mcp.json 与 hook 仍指向 ${cfg.port}。想要稳定,请释放 ${cfg.port},或改 config 的 port 后重跑 npx contactsheet init。`)
       )
       return p
     }
