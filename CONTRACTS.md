@@ -159,6 +159,13 @@ export function runInit(cwd: string, flags: Partial<CsConfig>): Promise<void>
 - 视图动画 `animateTo()` 用 CSS transition:过渡期间 `state` 已是终值、DOM 还在半路,读几何的监听者这一帧算出来全是错的。所以过渡结束后**必须再补一次 `applyView()`**,否则错位会永久钉住(select.ts 另外自己用 `liveScale()` 现量缩放兜底)。
 - SSE `registry` 事件比 Next 重编译快约 1 秒,事件到达时 `/__cs/registry` 往往还是旧的那份。`onRegistryEvent` 拿 SSE 报的 id 集合当预期,对不上就 700ms 间隔重拉,最多 4 次。
 
+## 端口策略(cli/server)
+
+- `startServer` 返回 `{ port, close }`,`port` 是**实际**监听端口(可能顺延),banner 必须用它。
+- 被占时:先探 `/__cs/api/state` —— 同 projectRoot 的 contactsheet → 打印地址 `exit(0)`;
+  显式 `--port`(`cfg.portExplicit`)→ 报错不猜;其余 → 顺延 ≤20 个并警告(换端口=换源,本机记忆隔离,MCP/hook 仍指旧端口)。
+- init 的默认 target 会先认 package.json dev script 里的 `-p/--port/PORT=`(非 3000 才生效)。
+
 ## Agent A 补充细节
 
 - 静态资产:优先 `dist/canvas/`(与 cli.js 同发布);若不存在(开发期),回落读 `src/canvas/`,其中 app.js 开发期由 `node build.mjs --watch` 产出到 dist——即回落顺序 dist → src,`index.html`/`style.css` 两处任一。

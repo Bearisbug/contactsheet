@@ -17,7 +17,7 @@ export { broadcast } from "./sse.js"
 
 type McpHandler = (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>
 
-export async function startServer(cfg: CsConfig): Promise<{ close(): Promise<void> }> {
+export async function startServer(cfg: CsConfig): Promise<{ port: number; close(): Promise<void> }> {
   const proxy = httpProxy.createProxyServer({ target: cfg.target, ws: true, changeOrigin: true })
 
   // next dev 没起时给一张说明页,画布自身照常可开。日志走 proxyLog 去重限流:
@@ -68,21 +68,16 @@ export async function startServer(cfg: CsConfig): Promise<{ close(): Promise<voi
   // 只绑回环:画布没有鉴权,而 /__cs/api/push 能把任意文本以"用户发言"送进你的 Claude Code
   // 会话。裸绑 0.0.0.0 等于把这条执行链暴露给同一个 Wi-Fi 上的任何人。要 LAN 访问必须显式 --host。
   const host = cfg.host ?? "127.0.0.1"
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject)
-    server.listen(cfg.port, host, () => {
-      server.off("error", reject)
-      resolve()
-    })
-  })
+  const port = await listenWithFallback(server, cfg, host)
   if (host !== "127.0.0.1" && host !== "localhost") {
     console.warn(
-      `[contactsheet] ⚠️  监听在 ${host}:${cfg.port} —— 画布无鉴权,同网络的任何人都能读你的批注、` +
+      `[contactsheet] ⚠️  监听在 ${host}:${port} —— 画布无鉴权,同网络的任何人都能读你的批注、` +
         `并向你的 Claude Code 会话推送消息。只在可信网络这么做。`
     )
   }
 
   return {
+    port,
     async close() {
       sse.closeAll()
       proxyLog.close()
@@ -177,4 +172,64 @@ function downPage(target: string): string {
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string)
+}
+
+/** 占着配置端口的是不是"本项目的另一个 contactsheet"?是就没必要再起一个 */
+async function occupiedBySameProject(cfg: CsConfig, port: number): Promise<boolean> {
+  try {
+    const ctl = AbortSignal.timeout(800)
+    const r = await fetch(`http://127.0.0.1:${port}/__cs/api/state`, { signal: ctl })
+    if (!r.ok) return false
+    const data = (await r.json()) as { projectRoot?: string }
+    return data?.projectRoot === cfg.projectRoot
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 端口被占时的策略:
+ * - 占用者是本项目的另一个 contactsheet → 打印地址直接退出(用户多半是忘了已经起过);
+ * - 用户显式 --port → 不猜,报错说清楚;
+ * - 其余(默认/config 端口被别的进程占)→ 往上顺延找空位,最多 20 个,并醒目警告:
+ *   换端口 = 换源,画布的本机记忆(画板位置/折叠/底色)按源隔离,MCP 与 hook 也仍指向旧端口。
+ */
+async function listenWithFallback(server: http.Server, cfg: CsConfig, host: string): Promise<number> {
+  const tryListen = (port: number): Promise<boolean> =>
+    new Promise((resolve, reject) => {
+      const onErr = (err: NodeJS.ErrnoException): void => {
+        if (err.code === "EADDRINUSE") resolve(false)
+        else reject(err)
+      }
+      server.once("error", onErr)
+      server.listen(port, host, () => {
+        server.off("error", onErr)
+        resolve(true)
+      })
+    })
+
+  if (await tryListen(cfg.port)) return cfg.port
+
+  if (await occupiedBySameProject(cfg, cfg.port)) {
+    console.log(
+      `[contactsheet] 本项目已经有一个 contactsheet 在跑了,直接用它:http://localhost:${cfg.port}/__cs`
+    )
+    process.exit(0)
+  }
+  if (cfg.portExplicit) {
+    throw new Error(
+      `端口 ${cfg.port} 被其他进程占用。换一个 --port,或找出占用者:lsof -nP -iTCP:${cfg.port} -sTCP:LISTEN`
+    )
+  }
+  for (let p = cfg.port + 1; p <= cfg.port + 20; p++) {
+    if (await tryListen(p)) {
+      console.warn(
+        `[contactsheet] ⚠️  端口 ${cfg.port} 被占,已顺延到 ${p} → http://localhost:${p}/__cs\n` +
+          `   注意:换端口 = 换浏览器源。画板位置/折叠/底色这些本机记忆按源隔离,这个端口下是全新的;\n` +
+          `   .mcp.json 与 hook 仍指向 ${cfg.port}。想要稳定,请释放 ${cfg.port},或改 config 的 port 后重跑 npx contactsheet init。`
+      )
+      return p
+    }
+  }
+  throw new Error(`从 ${cfg.port} 往上连试 20 个端口都被占,用 --port 指定一个空闲端口`)
 }

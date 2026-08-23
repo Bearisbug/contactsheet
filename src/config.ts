@@ -32,6 +32,7 @@ export function loadConfig(cwd: string, flags: Partial<CsConfig>): CsConfig {
     // 末尾斜杠去掉,后面一律靠 `${target}/xxx` 拼
     target: String(pick("target") ?? DEFAULT_TARGET).replace(/\/+$/, ""),
     port,
+    portExplicit: flags.port !== undefined,
     appDir: pick("appDir") ?? detectAppDir(projectRoot),
     designDir: pick("designDir") ?? DEFAULT_DESIGN_DIR,
   }

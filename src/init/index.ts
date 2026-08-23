@@ -47,6 +47,10 @@ export async function runInit(cwd: string, flags: Partial<CsConfig>): Promise<vo
   console.log("  1. 照常起你自己的 dev server(next dev),确认它在 " + cfg.target)
   console.log("  2. 另开一个终端:npx contactsheet")
   console.log(`  3. 打开 http://localhost:${cfg.port}/__cs`)
+  console.log("")
+  console.log("端口都可以换:dev server 不在 " + cfg.target + " 就 --target <url>,")
+  console.log(`  ${cfg.port} 被占就 --port <n>(或改 contactsheet.config.json 后重跑 init,MCP/hook 会跟着换)。`)
+  console.log(`  ${cfg.port} 被别的进程占着时,contactsheet 会自动顺延到下一个空闲端口并提示。`)
 }
 
 // ============================================================
@@ -87,13 +91,29 @@ function detectAppDir(root: string): string {
   )
 }
 
+/** 从 package.json 的 dev script 里认端口(next dev -p 3100 / --port 3100 / PORT=3100),
+ *  认出来非 3000 就当默认 target —— 用户跑的本来就不是 3000 时,别再让他手改配置 */
+function detectDevTarget(root: string): string | null {
+  try {
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+      scripts?: Record<string, string>
+    }
+    const dev = pkg.scripts?.["dev"] ?? ""
+    const m = dev.match(/(?:-p|--port)[ =](\d{2,5})/) ?? dev.match(/\bPORT=(\d{2,5})/)
+    if (m && m[1] !== "3000") return `http://localhost:${m[1]}`
+  } catch {
+    /* 读不到就用默认 */
+  }
+  return null
+}
+
 function writeConfigFile(root: string, appDir: string, flags: Partial<CsConfig>): CsConfig {
   const file = join(root, "contactsheet.config.json")
   const existing = readJsonObject(file) ?? {}
 
   // 优先级:CLI flags > 用户已有配置 > 探测/默认值。用户手改过的值不会被 init 抹掉。
   const resolved = {
-    target: pickString(flags.target, existing["target"], DEFAULT_TARGET),
+    target: pickString(flags.target, existing["target"], detectDevTarget(root) ?? DEFAULT_TARGET),
     port: pickNumber(flags.port, existing["port"], DEFAULT_PORT),
     appDir: pickString(flags.appDir, existing["appDir"], appDir),
     designDir: pickString(flags.designDir, existing["designDir"], DEFAULT_DESIGN_DIR),

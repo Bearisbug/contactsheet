@@ -54,6 +54,14 @@ npx contactsheet
 flags：`--port`（外壳端口，默认 5199）、`--target`（你的 dev server，默认 `http://localhost:3000`）、
 `--design-dir`（画板目录，默认 `design`）。命令也可以简写成 `csheet`。
 
+**端口被占了怎么办**（都不用你手动排查）：
+
+- `init` 会读你 package.json 的 dev script——`next dev -p 3100` 这种写法会被认出来，target 自动写成 3100；
+- 5199 被**别的进程**占着：自动顺延到下一个空闲端口（最多 +20）并醒目提示。注意顺延 = 换浏览器源，
+  画板位置这些本机记忆按源隔离，`.mcp.json`/hook 也仍指向原端口——想固定就改 config 的 port 再跑一次 `init`；
+- 5199 上跑的是**本项目的另一个 contactsheet**（最常见：忘了已经起过）：直接提示地址退出，不再起第二个；
+- 显式传了 `--port` 时不猜你的意图：被占就报错，附排查命令。
+
 **只监听 127.0.0.1。** 画布没有登录，而 `p` 推送能以你的名义往 Claude Code 会话里说话 ——
 所以默认只有本机能连。非 GET 请求还会校验 Origin，推送另外要一枚每次启动随机生成的 token
 （只发给画布页，你 app 里的第三方脚本拿不到）。真要局域网访问，改 config 里的 `host`，

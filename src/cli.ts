@@ -69,7 +69,7 @@ async function up(flags: Partial<CsConfig>): Promise<void> {
   )
 
   const server = await startServer(cfg)
-  banner(cfg)
+  banner(cfg, server.port)
 
   let closing = false
   const shutdown = async (sig: string): Promise<void> => {
@@ -104,9 +104,9 @@ async function quiet(fn: () => Promise<unknown>): Promise<void> {
   }
 }
 
-function banner(cfg: CsConfig): void {
+function banner(cfg: CsConfig, port: number): void {
   console.log(`
-  contactsheet   http://localhost:${cfg.port}/__cs
+  contactsheet   http://localhost:${port}/__cs
   代理目标       ${cfg.target}
   画板目录       ${cfg.designDir}/   ·   app 目录 ${cfg.appDir}/
   Ctrl-C 退出
